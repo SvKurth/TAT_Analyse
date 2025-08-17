@@ -1,0 +1,28 @@
+# Requirements für das Tradelog Dashboard
+# Zusätzliche Abhängigkeiten für interaktive Visualisierung
+
+# Streamlit für das Web-Dashboard
+streamlit>=1.28.0
+
+# Plotly für interaktive Charts
+plotly>=5.17.0
+
+# Zusätzliche pandas-Funktionalitäten
+openpyxl>=3.1.0
+pyarrow>=12.0.0
+
+# Für bessere Performance
+numpy>=1.24.0
+
+# Für erweiterte Datenverarbeitung
+python-dateutil>=2.8.0
+
+# Technische Analyse (falls benötigt)
+ta>=0.10.0
+
+# Zusätzliche Visualisierung
+seaborn>=0.12.0
+matplotlib>=3.7.0
+
+# Yahoo Finance (falls benötigt)
+yfinance>=0.2.0

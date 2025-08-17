@@ -1,0 +1,22 @@
+Collecting ta
+  Using cached ta-0.11.0.tar.gz (25 kB)
+  Installing build dependencies: started
+  Installing build dependencies: finished with status 'done'
+  Getting requirements to build wheel: started
+  Getting requirements to build wheel: finished with status 'done'
+  Preparing metadata (pyproject.toml): started
+  Preparing metadata (pyproject.toml): finished with status 'done'
+Requirement already satisfied: numpy in c:\users\svenk\onedrive\dokumente\000_python_entwicklung\trade_analysis\venv\lib\site-packages (from ta) (2.3.2)
+Requirement already satisfied: pandas in c:\users\svenk\onedrive\dokumente\000_python_entwicklung\trade_analysis\venv\lib\site-packages (from ta) (2.3.1)
+Requirement already satisfied: python-dateutil>=2.8.2 in c:\users\svenk\onedrive\dokumente\000_python_entwicklung\trade_analysis\venv\lib\site-packages (from pandas->ta) (2.9.0.post0)
+Requirement already satisfied: pytz>=2020.1 in c:\users\svenk\onedrive\dokumente\000_python_entwicklung\trade_analysis\venv\lib\site-packages (from pandas->ta) (2025.2)
+Requirement already satisfied: tzdata>=2022.7 in c:\users\svenk\onedrive\dokumente\000_python_entwicklung\trade_analysis\venv\lib\site-packages (from pandas->ta) (2025.2)
+Requirement already satisfied: six>=1.5 in c:\users\svenk\onedrive\dokumente\000_python_entwicklung\trade_analysis\venv\lib\site-packages (from python-dateutil>=2.8.2->pandas->ta) (1.17.0)
+Building wheels for collected packages: ta
+  Building wheel for ta (pyproject.toml): started
+  Building wheel for ta (pyproject.toml): finished with status 'done'
+  Created wheel for ta: filename=ta-0.11.0-py3-none-any.whl size=29497 sha256=e4f972cc3926ffe08e97ee8822cd790724a7af40a44c74d7cf0ec535136e6152
+  Stored in directory: c:\users\svenk\appdata\local\pip\cache\wheels\e3\3a\ee\4955a26c90a4b7deb6d725dc8ec7b8604a7aef44e43a2e8af7
+Successfully built ta
+Installing collected packages: ta
+Successfully installed ta-0.11.0
