@@ -1,0 +1,3 @@
+"""
+Trade Analyse Tool - Hauptanwendungspaket
+"""

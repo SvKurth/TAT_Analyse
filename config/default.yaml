@@ -1,0 +1,54 @@
+# Trade Analyse Tool - Standardkonfiguration
+# Diese Datei kann angepasst werden, ohne den Code zu ändern
+
+# Datenbankeinstellungen
+database:
+  # SQLite-Datenbankdatei
+  file: "trades.db"
+  # Maximale Anzahl gleichzeitiger Verbindungen
+  max_connections: 10
+
+# Logging-Einstellungen
+logging:
+  # Log-Level: DEBUG, INFO, WARNING, ERROR, CRITICAL
+  level: "INFO"
+  # Log-Datei (optional)
+  file: null
+  # Logs in Konsole ausgeben
+  console: true
+
+# Dashboard-Einstellungen
+dashboard:
+  # Standard-Port für Streamlit
+  port: 8501
+  # Browser automatisch öffnen
+  open_browser: true
+  # Headless-Modus (für Server)
+  headless: false
+
+# Analyse-Einstellungen
+analysis:
+  # Standardwährung für Berechnungen
+  default_currency: "EUR"
+  # Dezimalstellen für Berechnungen
+  decimal_places: 2
+  # Zeitzone für Datumsverarbeitung
+  timezone: "Europe/Berlin"
+
+# Export-Einstellungen
+export:
+  # Standard-Export-Format
+  default_format: "csv"
+  # Verfügbare Export-Formate
+  available_formats: ["csv", "excel", "json"]
+  # Standard-Export-Verzeichnis
+  output_dir: "exports"
+
+# Performance-Einstellungen
+performance:
+  # Cache-Größe für Berechnungen
+  cache_size: 1000
+  # Automatisches Speichern aktivieren
+  auto_save: true
+  # Speicher-Optimierung aktivieren
+  memory_optimization: true

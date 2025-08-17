@@ -13,7 +13,7 @@ import sys
 project_root = Path(__file__).parent
 sys.path.insert(0, str(project_root / "src"))
 
-from src.data_loader import DataLoader
+from app.services.trade_data_service import TradeDataService
 from src.utils import load_config
 
 def is_sqlite_file(file_path: str) -> bool:
@@ -68,7 +68,7 @@ def main():
         # Konfiguration laden
         try:
             config = load_config()
-            data_loader = DataLoader(config)
+            data_loader = TradeDataService(config)
         except Exception as e:
             st.error(f"Fehler beim Laden der Konfiguration: {e}")
             return
