@@ -4,10 +4,11 @@ Hauptservice für alle Trade-Daten-Operationen.
 """
 
 import pandas as pd
-import logging
 from typing import Dict, Any, Optional, Tuple
 from app.services.database_service import DatabaseService
 from app.services.data_processing_service import DataProcessingService
+from app.core.logging_service import get_logger
+from app.core.error_handler import safe_execute
 
 
 class TradeDataService:
@@ -21,7 +22,7 @@ class TradeDataService:
             config: Konfigurationsdictionary
         """
         self.config = config
-        self.logger = logging.getLogger(__name__)
+        self.logger = get_logger(__name__)
         
         # Services initialisieren
         self.database_service = DatabaseService(config)

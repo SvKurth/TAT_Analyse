@@ -4,8 +4,9 @@ Verarbeitet und formatiert Handelsdaten.
 """
 
 import pandas as pd
-import logging
 from typing import List, Optional
+from app.core.logging_service import get_logger
+from app.core.error_handler import safe_execute
 
 
 class DataProcessingService:
@@ -19,7 +20,7 @@ class DataProcessingService:
             config: Konfigurationsdictionary
         """
         self.config = config
-        self.logger = logging.getLogger(__name__)
+        self.logger = get_logger(__name__)
         
     def format_trade_data(self, data: pd.DataFrame, primary_keys: Optional[List[str]] = None) -> pd.DataFrame:
         """

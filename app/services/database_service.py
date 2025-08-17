@@ -5,10 +5,11 @@ Verwaltet alle Datenbankverbindungen und -operationen.
 
 import sqlite3
 import pandas as pd
-import logging
 from pathlib import Path
 from typing import Dict, Any, List, Optional, Tuple
 from contextlib import contextmanager
+from app.core.logging_service import get_logger
+from app.core.error_handler import safe_execute, retry_on_error
 
 
 class DatabaseService:
@@ -22,7 +23,7 @@ class DatabaseService:
             config: Konfigurationsdictionary
         """
         self.config = config
-        self.logger = logging.getLogger(__name__)
+        self.logger = get_logger(__name__)
         self._connection_pool = {}
         
     @contextmanager
