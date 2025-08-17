@@ -1128,7 +1128,10 @@ def show_tat_navigator_page(data_loader, db_path):
             st.error("❌ Keine Trade-Daten verfügbar.")
             return
         
-        st.success(f"✅ {len(trade_data)} Trades geladen")
+                st.success(f"✅ {len(trade_data)} Trades geladen")
+        
+        # Profit-Spalten identifizieren
+        profit_cols = [col for col in trade_data.columns if 'profit' in col.lower() or 'pnl' in col.lower()]
         
         # Erstelle zwei Spalten für die Hauptfunktionen
         col1, col2 = st.columns([2, 1])
@@ -1137,39 +1140,36 @@ def show_tat_navigator_page(data_loader, db_path):
             st.subheader("📊 Trading-Übersicht")
             
             # Trading-Performance-Metriken
-            if 'profit' in trade_data.columns.str.lower() or 'pnl' in trade_data.columns.str.lower():
-                profit_cols = [col for col in trade_data.columns if 'profit' in col.lower() or 'pnl' in col.lower()]
-                if profit_cols:
-                    profit_col = profit_cols[0]
-                    
-                    # Berechne Trading-Metriken
-                    total_trades = len(trade_data)
-                    total_profit = trade_data[profit_col].sum()
-                    avg_profit = trade_data[profit_col].mean()
-                    win_trades = len(trade_data[trade_data[profit_col] > 0])
-                    win_rate = (win_trades / total_trades * 100) if total_trades > 0 else 0
-                    
-                    # Metriken in Kacheln anzeigen
-                    metric_cols = st.columns(4)
-                    
-                    with metric_cols[0]:
-                        st.metric("Gesamt Trades", total_trades, delta=None)
-                    
-                    with metric_cols[1]:
-                        st.metric("Gewinnrate", f"{win_rate:.1f}%", delta=None)
-                    
-                    with metric_cols[2]:
-                        st.metric("Durchschnitt", f"${avg_profit:,.2f}", delta=None)
-                    
-                    with metric_cols[3]:
-                        st.metric("Gesamt P&L", f"${total_profit:,.2f}", 
-                                delta=f"{'↗️' if total_profit >= 0 else '↘️'}")
+            if profit_cols:
+            profit_col = profit_cols[0]
             
-            # Trading-Chart
-            st.subheader("📈 Trading-Performance Chart")
+            # Berechne Trading-Metriken
+            total_trades = len(trade_data)
+            total_profit = trade_data[profit_col].sum()
+            avg_profit = trade_data[profit_col].mean()
+            win_trades = len(trade_data[trade_data[profit_col] > 0])
+            win_rate = (win_trades / total_trades * 100) if total_trades > 0 else 0
             
-            if 'profit' in trade_data.columns.str.lower() or 'pnl' in trade_data.columns.str.lower():
-                if profit_cols:
+            # Metriken in Kacheln anzeigen
+            metric_cols = st.columns(4)
+            
+            with metric_cols[0]:
+                st.metric("Gesamt Trades", total_trades, delta=None)
+            
+            with metric_cols[1]:
+                st.metric("Gewinnrate", f"{win_rate:.1f}%", delta=None)
+            
+            with metric_cols[2]:
+                st.metric("Durchschnitt", f"${avg_profit:,.2f}", delta=None)
+            
+            with metric_cols[3]:
+                st.metric("Gesamt P&L", f"${total_profit:,.2f}", 
+                        delta=f"{'↗️' if total_profit >= 0 else '↘️'}")
+        
+        # Trading-Chart
+        st.subheader("📈 Trading-Performance Chart")
+        
+        if profit_cols:
                     # Erstelle kumulative P&L-Kurve
                     cumulative_pnl = trade_data[profit_col].cumsum()
                     
@@ -1246,6 +1246,7 @@ def show_tat_navigator_page(data_loader, db_path):
         with stat_col1:
             st.markdown("**📈 Gewinn/Verlust Verteilung**")
             if profit_cols:
+                profit_col = profit_cols[0]
                 profit_data = trade_data[profit_col]
                 positive_trades = len(profit_data[profit_data > 0])
                 negative_trades = len(profit_data[profit_data < 0])
@@ -1270,6 +1271,8 @@ def show_tat_navigator_page(data_loader, db_path):
         with stat_col2:
             st.markdown("**📊 Trade-Größen Verteilung**")
             if profit_cols:
+                profit_col = profit_cols[0]
+                profit_data = trade_data[profit_col]
                 # Histogram der Trade-Größen
                 fig_hist = go.Figure()
                 fig_hist.add_trace(go.Histogram(
@@ -1292,6 +1295,8 @@ def show_tat_navigator_page(data_loader, db_path):
         with stat_col3:
             st.markdown("**🎯 Trading-Performance**")
             if profit_cols:
+                profit_col = profit_cols[0]
+                profit_data = trade_data[profit_col]
                 # Performance-Metriken
                 max_profit = profit_data.max()
                 max_loss = profit_data.min()
@@ -1311,6 +1316,12 @@ def show_tat_navigator_page(data_loader, db_path):
         st.subheader("💡 Trading-Empfehlungen")
         
         if profit_cols:
+            profit_col = profit_cols[0]
+            profit_data = trade_data[profit_col]
+            
+            # Berechne zusätzliche Metriken für Empfehlungen
+            avg_profit = profit_data.mean()
+            
             col_rec1, col_rec2 = st.columns(2)
             
             with col_rec1:
