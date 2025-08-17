@@ -1128,7 +1128,7 @@ def show_tat_navigator_page(data_loader, db_path):
             st.error("❌ Keine Trade-Daten verfügbar.")
             return
         
-                st.success(f"✅ {len(trade_data)} Trades geladen")
+        st.success(f"✅ {len(trade_data)} Trades geladen")
         
         # Profit-Spalten identifizieren
         profit_cols = [col for col in trade_data.columns if 'profit' in col.lower() or 'pnl' in col.lower()]
@@ -1141,7 +1141,7 @@ def show_tat_navigator_page(data_loader, db_path):
             
             # Trading-Performance-Metriken
             if profit_cols:
-            profit_col = profit_cols[0]
+                profit_col = profit_cols[0]
             
             # Berechne Trading-Metriken
             total_trades = len(trade_data)
@@ -1170,33 +1170,33 @@ def show_tat_navigator_page(data_loader, db_path):
         st.subheader("📈 Trading-Performance Chart")
         
         if profit_cols:
-                    # Erstelle kumulative P&L-Kurve
-                    cumulative_pnl = trade_data[profit_col].cumsum()
-                    
-                    fig = go.Figure()
-                    fig.add_trace(go.Scatter(
-                        x=list(range(len(cumulative_pnl))),
-                        y=cumulative_pnl,
-                        mode='lines+markers',
-                        name='Kumulativer P&L',
-                        line=dict(color='#1f77b4', width=2),
-                        marker=dict(size=4)
-                    ))
-                    
-                    fig.update_layout(
-                        title="Trading-Performance Verlauf",
-                        xaxis_title="Trade Nummer",
-                        yaxis_title="Kumulativer P&L (€)",
-                        height=400,
-                        showlegend=True,
-                        plot_bgcolor='white',
-                        paper_bgcolor='white'
-                    )
-                    
-                    fig.update_xaxes(gridcolor='lightgray', gridwidth=1)
-                    fig.update_yaxes(gridcolor='lightgray', gridwidth=1)
-                    
-                    st.plotly_chart(fig, use_container_width=True)
+            # Erstelle kumulative P&L-Kurve
+            cumulative_pnl = trade_data[profit_col].cumsum()
+            
+            fig = go.Figure()
+            fig.add_trace(go.Scatter(
+                x=list(range(len(cumulative_pnl))),
+                y=cumulative_pnl,
+                mode='lines+markers',
+                name='Kumulativer P&L',
+                line=dict(color='#1f77b4', width=2),
+                marker=dict(size=4)
+            ))
+            
+            fig.update_layout(
+                title="Trading-Performance Verlauf",
+                xaxis_title="Trade Nummer",
+                yaxis_title="Kumulativer P&L (€)",
+                height=400,
+                showlegend=True,
+                plot_bgcolor='white',
+                paper_bgcolor='white'
+            )
+            
+            fig.update_xaxes(gridcolor='lightgray', gridwidth=1)
+            fig.update_yaxes(gridcolor='lightgray', gridwidth=1)
+            
+            st.plotly_chart(fig, use_container_width=True)
         
         with col2:
             st.subheader("🎯 Trading-Navigation")

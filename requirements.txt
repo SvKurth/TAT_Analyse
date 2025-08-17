@@ -1,29 +1,95 @@
-# Core dependencies
-pandas>=2.0.0
-numpy>=1.24.0
-matplotlib>=3.7.0
+# =============================================================================
+# TAT Analyse Tool - Komplette Requirements
+# =============================================================================
+# Alle Abhängigkeiten für das Trading-Analyse-Tool und das Dashboard
+# Installieren mit: pip install -r requirements.txt
+# 
+# Diese Datei enthält alle notwendigen Pakete für:
+# - Grundfunktionalität des Tools
+# - Interaktives Web-Dashboard
+# - Datenanalyse und Visualisierung
+# - Entwicklung und Testing
+
+# =============================================================================
+# WEB FRAMEWORK
+# =============================================================================
+# Streamlit für das interaktive Web-Dashboard
+streamlit>=1.28.0
+
+# =============================================================================
+# INTERACTIVE VISUALIZATION
+# =============================================================================
+# Plotly für interaktive Charts und Grafiken
+plotly>=5.17.0
+# Statistische Visualisierung
 seaborn>=0.12.0
-plotly>=5.15.0
+# Grundlegende Plotting-Bibliothek
+matplotlib>=3.7.0
 
-# Data handling
+# =============================================================================
+# CORE DATA PROCESSING
+# =============================================================================
+# Pandas für Datenmanipulation und -analyse
+pandas>=2.1.0
+# NumPy für numerische Berechnungen
+numpy>=1.24.0
+# Python-Datum/Zeit-Utilities
+python-dateutil>=2.8.0
+
+# =============================================================================
+# DATA SOURCES & IMPORT
+# =============================================================================
+# Yahoo Finance API für Marktdaten
 yfinance>=0.2.0
+# HTTP-Requests für API-Aufrufe
 requests>=2.31.0
+# Excel-Dateien lesen/schreiben
 openpyxl>=3.1.0
+# Parquet-Dateien für bessere Performance
+pyarrow>=12.0.0
 
-# Technical analysis
+# =============================================================================
+# TECHNICAL ANALYSIS
+# =============================================================================
+# Technische Indikatoren (RSI, MACD, etc.)
 ta>=0.10.0
+# Wissenschaftliche Berechnungen
 scipy>=1.10.0
+# Machine Learning für erweiterte Analysen
 scikit-learn>=1.3.0
 
-# Configuration
+# =============================================================================
+# CONFIGURATION & UTILITIES
+# =============================================================================
+# Umgebungsvariablen aus .env-Dateien laden
 python-dotenv>=1.0.0
+# Konfigurationsdateien verarbeiten
 configparser
 
-# Testing
+# =============================================================================
+# DEVELOPMENT & TESTING
+# =============================================================================
+# Unit-Testing Framework
 pytest>=7.4.0
+# Test-Coverage-Berichte
 pytest-cov>=4.1.0
-
-# Development
+# Code-Formatierung
 black>=23.0.0
+# Code-Linting
 flake8>=6.0.0
+# Statische Typ-Überprüfung
 mypy>=1.5.0
+
+# =============================================================================
+# OPTIONAL ENHANCEMENTS (auskommentiert)
+# =============================================================================
+# Für erweiterte Datenbankunterstützung
+# sqlalchemy>=2.0.0
+# Für bessere Performance bei großen Datensätzen
+# numba>=0.58.0
+# Für erweiterte Zeitreihenanalyse
+# statsmodels>=0.14.0
+# Für erweiterte Chart-Funktionalitäten
+# bokeh>=3.0.0
+# Für 3D-Visualisierungen
+# plotly-express>=0.4.1
