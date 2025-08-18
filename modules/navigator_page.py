@@ -16,14 +16,16 @@ from modules.api_charts import (
     test_api_connection
 )
 from .api_cache import get_cache_instance
+from .trade_results_cache import get_trade_results_cache
 
 def show_tat_navigator_page(data_loader, db_path):
     """Zeigt die TAT Tradenavigator-Seite an."""
     st.header("🎯 TAT Tradenavigator")
     st.markdown("---")
     
-    # API-Price-Cache initialisieren
+    # Beide Caches initialisieren
     api_cache = get_cache_instance()
+    trade_results_cache = get_trade_results_cache()
     
     if not db_path:
         st.warning("⚠️ Bitte laden Sie zuerst eine Datenbank hoch oder geben Sie einen Pfad ein.")
@@ -291,6 +293,7 @@ def show_tat_navigator_page(data_loader, db_path):
                 'Date': '📅 Datum',
                 'TimeOnly': '🕐 Eröffnung',
                 'PriceOpen': '💰 Preis Eröffnung',
+                'PriceStopTarget': '🎯 Stop/Target',
                 'TimeClosedOnly': '🕐 Schließung',
                 'PriceClose': '💰 Preis Schließung',
                 'TradeType': '📊 Trade Type',
@@ -311,7 +314,7 @@ def show_tat_navigator_page(data_loader, db_path):
             
             # Wichtige Spalten für Anzeige
             display_columns = []
-            for col in ['📅 Datum', '🕐 Eröffnung', '💰 Preis Eröffnung', '🕐 Schließung', '💰 Preis Schließung', '📊 Trade Type', '📦 Quantity', '💰 P&L']:
+            for col in ['📅 Datum', '🕐 Eröffnung', '💰 Preis Eröffnung', '🎯 Stop/Target', '🕐 Schließung', '💰 Preis Schließung', '📊 Trade Type', '📦 Quantity', '💰 P&L']:
                 if col in display_trades.columns:
                     display_columns.append(col)
             
@@ -372,25 +375,39 @@ def show_tat_navigator_page(data_loader, db_path):
                         if hasattr(trade_date, 'strftime'):
                             api_date = trade_date.strftime('%Y-%m-%d')
                             
+                            # Eindeutige Trade-ID erstellen
+                            trade_id = f"{api_date}_{option_type}{strike}_{idx}"
+                            
+                            # PRÜFE ZUERST DEN TRADE-RESULTS-CACHE (schnellste Option)
+                            cached_results = trade_results_cache.get_cached_results(trade_id, api_date, option_type, strike)
+                            
+                            if cached_results:
+                                # ✅ Alle Werte sind bereits berechnet - sofort setzen
+                                display_trades.loc[idx, '🔗 API-Link'] = cached_results['api_link']
+                                display_trades.loc[idx, '📈 Optionspreis Handelsende'] = f"{cached_results['handelsende_preis']:.3f}"
+                                display_trades.loc[idx, '📊 Peak'] = f"{cached_results['peak_preis']:.3f}"
+                                display_trades.loc[idx, '🕐 Peak-Zeit'] = cached_results['peak_zeit']
+                                continue  # Nächster Trade
+                            
                             # API-Link für diesen Trade erstellen
                             api_link = f"https://api.0dtespx.com/optionPrice?asset=SPX&date={api_date}&interval=1&symbol=-{option_type}{strike}"
                             display_trades.loc[idx, '🔗 API-Link'] = api_link
                             
-                            # API-Call mit Cache-Unterstützung
+                            # API-Call mit API-Cache-Unterstützung
                             try:
-                                # Prüfe zuerst den Cache
+                                # Prüfe zuerst den API-Cache
                                 cached_response = api_cache.get_cached_price('SPX', api_date, option_type, strike)
                                 
                                 if cached_response:
-                                    # Verwende gecachte Daten
+                                    # Verwende gecachte API-Daten
                                     api_response = cached_response
-                                    cache_hit = True
+                                    api_cache_hit = True
                                 else:
                                     # API-Call durchführen
                                     api_response = get_option_price_data('SPX', api_date, option_type, strike)
-                                    cache_hit = False
+                                    api_cache_hit = False
                                     
-                                    # Speichere in Cache (falls erfolgreich)
+                                    # Speichere in API-Cache (falls erfolgreich)
                                     if api_response and isinstance(api_response, list) and len(api_response) > 0:
                                         api_cache.cache_price_data('SPX', api_date, option_type, strike, api_response)
                                 
@@ -551,6 +568,13 @@ def show_tat_navigator_page(data_loader, db_path):
                                                 # Direkt aus dem DataFrame: bereits in Bern-Zeit
                                                 peak_time_formatted = peak_datetime_bern.strftime('%H:%M:%S')
                                                 display_trades.loc[idx, '🕐 Peak-Zeit'] = peak_time_formatted
+                                                
+                                                # ✅ SPEICHERE ALLE BEREICHNETEN ERGEBNISSE IM TRADE-RESULTS-CACHE
+                                                if handelsende_preis is not None:
+                                                    trade_results_cache.cache_trade_results(
+                                                        trade_id, api_date, option_type, strike,
+                                                        handelsende_preis, peak_preis, peak_time_formatted, api_link
+                                                    )
                                             except Exception:
                                                 display_trades.loc[idx, '🕐 Peak-Zeit'] = 'Zeit-Fehler'
                                         else:
@@ -591,43 +615,79 @@ def show_tat_navigator_page(data_loader, db_path):
             progress_bar.empty()
             st.success(f"✅ Handelsende-Preise geladen")
             
-            # Cache-Statistiken anzeigen
+            # Cache-Statistiken für beide Caches anzeigen
             st.markdown("---")
-            st.subheader("📊 API-Cache Statistiken")
+            st.subheader("📊 Cache-Statistiken")
             
+            # API-Cache Statistiken
+            st.markdown("**🗄️ API-Cache (API-Rohdaten)**")
             try:
-                cache_stats = api_cache.get_cache_stats()
+                api_cache_stats = api_cache.get_cache_stats()
                 
                 col1, col2, col3, col4 = st.columns(4)
                 with col1:
-                    st.metric("🗄️ Cache-Einträge", cache_stats['total_entries'])
+                    st.metric("🗄️ API-Einträge", api_cache_stats['total_entries'])
                 with col2:
-                    st.metric("🆕 Letzte 7 Tage", cache_stats['recent_entries'])
+                    st.metric("🆕 Letzte 7 Tage", api_cache_stats['recent_entries'])
                 with col3:
-                    st.metric("💾 Cache-Größe", f"{cache_stats['total_size_mb']} MB")
+                    st.metric("💾 API-Cache-Größe", f"{api_cache_stats['total_size_mb']} MB")
                 with col4:
-                    if cache_stats['top_entries']:
-                        top_entry = cache_stats['top_entries'][0]
+                    if api_cache_stats['top_entries']:
+                        top_entry = api_cache_stats['top_entries'][0]
                         st.metric("🔥 Meist genutzt", f"{top_entry[4]}x")
                     else:
                         st.metric("🔥 Meist genutzt", "0x")
-                
-                # Cache-Verwaltung
-                col1, col2 = st.columns(2)
-                with col1:
-                    if st.button("🧹 Alten Cache bereinigen (30+ Tage)", help="Löscht Cache-Einträge älter als 30 Tage"):
-                        deleted_count = api_cache.clear_old_cache(30)
-                        st.success(f"✅ {deleted_count} alte Cache-Einträge gelöscht")
-                        st.rerun()
-                
-                with col2:
-                    if st.button("🗑️ Alle Cache löschen", help="Löscht alle Cache-Einträge"):
-                        deleted_count = api_cache.clear_all_cache()
-                        st.success(f"✅ {deleted_count} Cache-Einträge gelöscht")
-                        st.rerun()
-                        
             except Exception as e:
-                st.warning(f"⚠️ Cache-Statistiken konnten nicht geladen werden: {e}")
+                st.warning(f"⚠️ API-Cache-Statistiken konnten nicht geladen werden: {e}")
+            
+            # Trade-Results-Cache Statistiken
+            st.markdown("**⚡ Trade-Results-Cache (Berechnete Werte)**")
+            try:
+                trade_cache_stats = trade_results_cache.get_cache_stats()
+                
+                col1, col2, col3, col4 = st.columns(4)
+                with col1:
+                    st.metric("⚡ Trade-Einträge", trade_cache_stats['total_entries'])
+                with col2:
+                    st.metric("🆕 Letzte 30 Tage", trade_cache_stats['recent_entries'])
+                with col3:
+                    st.metric("💾 Trade-Cache-Größe", f"{trade_cache_stats['total_size_kb']} KB")
+                with col4:
+                    if trade_cache_stats['top_entries']:
+                        top_entry = trade_cache_stats['top_entries']
+                        st.metric("🔥 Meist genutzt", f"{top_entry[0][3]}x")
+                    else:
+                        st.metric("🔥 Meist genutzt", "0x")
+            except Exception as e:
+                st.warning(f"⚠️ Trade-Cache-Statistiken konnten nicht geladen werden: {e}")
+            
+            # Cache-Verwaltung
+            st.markdown("**🛠️ Cache-Verwaltung**")
+            col1, col2, col3, col4 = st.columns(4)
+            
+            with col1:
+                if st.button("🧹 API-Cache bereinigen (30+ Tage)", help="Löscht API-Cache-Einträge älter als 30 Tage"):
+                    deleted_count = api_cache.clear_old_cache(30)
+                    st.success(f"✅ {deleted_count} API-Cache-Einträge gelöscht")
+                    st.rerun()
+            
+            with col2:
+                if st.button("🗑️ API-Cache löschen", help="Löscht alle API-Cache-Einträge"):
+                    deleted_count = api_cache.clear_all_cache()
+                    st.success(f"✅ {deleted_count} API-Cache-Einträge gelöscht")
+                    st.rerun()
+            
+            with col3:
+                if st.button("🧹 Trade-Cache bereinigen (60+ Tage)", help="Löscht Trade-Cache-Einträge älter als 60 Tage"):
+                    deleted_count = trade_results_cache.clear_old_cache(60)
+                    st.success(f"✅ {deleted_count} Trade-Cache-Einträge gelöscht")
+                    st.rerun()
+            
+            with col4:
+                if st.button("🗑️ Trade-Cache löschen", help="Löscht alle Trade-Cache-Einträge"):
+                    deleted_count = trade_results_cache.clear_all_cache()
+                    st.success(f"✅ {deleted_count} Trade-Cache-Einträge gelöscht")
+                    st.rerun()
             
             # Handelsende-Preis-Werte sind gesetzt
             
