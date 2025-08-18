@@ -39,6 +39,11 @@ class DataProcessingService:
             # Kopie der Daten erstellen
             formatted = data.copy()
             
+            # Allgemeine Datenbereinigung - leere Strings und ungültige Werte behandeln
+            for col in formatted.columns:
+                if formatted[col].dtype == 'object':  # Nur String/Objekt-Spalten
+                    formatted[col] = formatted[col].replace(['', 'None', 'null', 'NULL', 'nan', 'NaN'], pd.NA)
+            
             # Spaltennamen BEIBEHALTEN (ursprüngliche Namen aus der Datenbank)
             # formatted.columns = [col.lower().replace(' ', '_').replace('-', '_') for col in formatted.columns]
             
@@ -91,10 +96,20 @@ class DataProcessingService:
             
             for col in numeric_columns:
                 try:
+                    # Leere Strings und ungültige Werte bereinigen
+                    formatted[col] = formatted[col].replace(['', 'None', 'null', 'NULL'], pd.NA)
+                    
+                    # Numerische Konvertierung mit Fehlerbehandlung
                     formatted[col] = pd.to_numeric(formatted[col], errors='coerce')
+                    
+                    # NaN-Werte durch 0 ersetzen für bessere Kompatibilität
+                    formatted[col] = formatted[col].fillna(0)
+                    
                     self.logger.info(f"Numerische Spalte konvertiert: {col}")
                 except Exception as e:
                     self.logger.warning(f"Konnte numerische Spalte {col} nicht konvertieren: {e}")
+                    # Fallback: Spalte als String belassen
+                    formatted[col] = formatted[col].astype(str)
             
             # Primärschlüssel als erste Spalte setzen
             if primary_keys:

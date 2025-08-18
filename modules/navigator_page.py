@@ -5,6 +5,8 @@ Zeigt die TAT Navigator-Seite mit Navigation und Charts
 
 import streamlit as st
 import pandas as pd
+import datetime
+import time
 from pathlib import Path
 from modules.api_charts import (
     get_option_price_data, 
@@ -33,13 +35,13 @@ def show_tat_navigator_page(data_loader, db_path):
         
         st.success(f"✅ {len(trade_data)} Trades geladen")
         
-        # Intelligente Spaltenerkennung (wie in Metriken)
+        # Intelligente Spaltenerkennung
         profit_cols = [col for col in trade_data.columns if 'profit' in col.lower() or 'pnl' in col.lower() or 'gewinn' in col.lower()]
         type_cols = [col for col in trade_data.columns if 'type' in col.lower() or 'typ' in col.lower()]
         date_cols = [col for col in trade_data.columns if 'date' in col.lower() or 'datum' in col.lower() or 'time' in col.lower() or 'opened' in col.lower() or 'closed' in col.lower()]
         strategy_cols = [col for col in trade_data.columns if 'strategy' in col.lower() or 'strategie' in col.lower()]
         
-        # Datumsfilter (exakt wie in Metriken)
+        # Datumsfilter
         if date_cols:
             with st.container():
                 st.markdown("---")
@@ -48,7 +50,6 @@ def show_tat_navigator_page(data_loader, db_path):
                 # Datum-Eingaben
                 col1, col2 = st.columns(2)
                 with col1:
-                    # Startdatum
                     start_date = st.date_input(
                         "Von", 
                         value=st.session_state.get('start_date', None), 
@@ -56,11 +57,9 @@ def show_tat_navigator_page(data_loader, db_path):
                         label_visibility="collapsed", 
                         help="Startdatum"
                     )
-                    # Direkt im Session State speichern
                     if start_date != st.session_state.get('start_date'):
                         st.session_state.start_date = start_date
                 with col2:
-                    # Enddatum
                     end_date = st.date_input(
                         "Bis", 
                         value=st.session_state.get('end_date', None), 
@@ -68,15 +67,13 @@ def show_tat_navigator_page(data_loader, db_path):
                         label_visibility="collapsed", 
                         help="Enddatum"
                     )
-                    # Direkt im Session State speichern
                     if end_date != st.session_state.get('end_date'):
                         st.session_state.end_date = end_date
                 
-                # Zusätzliche Filter: Trade Type und Strategy
+                # Filter: Trade Type und Strategy
                 col_filter1, col_filter2 = st.columns(2)
                 
                 with col_filter1:
-                    # Trade Type Filter
                     if type_cols:
                         type_col = type_cols[0]
                         available_types = sorted(trade_data[type_col].dropna().unique())
@@ -90,7 +87,6 @@ def show_tat_navigator_page(data_loader, db_path):
                         selected_types = []
                 
                 with col_filter2:
-                    # Strategy Filter
                     if strategy_cols:
                         strategy_col = strategy_cols[0]
                         available_strategies = sorted(trade_data[strategy_col].dropna().unique())
@@ -103,7 +99,7 @@ def show_tat_navigator_page(data_loader, db_path):
                     else:
                         selected_strategies = []
                 
-                # Einheitlicher Anwenden-Button für alle Filter
+                # Filter-Buttons
                 col_apply, col_reset = st.columns([3, 1])
                 with col_apply:
                     if st.button("🔍 Alle Filter anwenden", type="primary", use_container_width=True, key="apply_filters_nav"):
@@ -117,9 +113,8 @@ def show_tat_navigator_page(data_loader, db_path):
                         st.session_state.filters_applied_nav = False
                         st.rerun()
                 
-                # Filter anwenden wenn Button gedrückt wurde
+                # Filter anwenden
                 if st.session_state.get('filters_applied_nav', False):
-                    # Datumsspalte als datetime konvertieren
                     if trade_data[date_cols[0]].dtype == 'object':
                         trade_data[date_cols[0]] = pd.to_datetime(trade_data[date_cols[0]], errors='coerce')
                     
@@ -127,12 +122,10 @@ def show_tat_navigator_page(data_loader, db_path):
                         trade_data_filtered = trade_data.copy()
                         filter_description = ""
                         
-                        # Datum-Filter anwenden
                         start_date = st.session_state.get('start_date')
                         end_date = st.session_state.get('end_date')
                         
                         if start_date and end_date:
-                            # Konvertiere start_date und end_date zu datetime für besseren Vergleich
                             start_datetime = pd.to_datetime(start_date)
                             end_datetime = pd.to_datetime(end_date)
                             
@@ -147,25 +140,23 @@ def show_tat_navigator_page(data_loader, db_path):
                             st.session_state.filters_applied_nav = False
                             return
                         
-                        # Trade Type Filter anwenden
+                        # Trade Type Filter
                         if selected_types and type_cols:
                             trade_data_filtered = trade_data_filtered[trade_data_filtered[type_cols[0]].isin(selected_types)]
-                            
                             if filter_description:
                                 filter_description += f" | Type: {len(selected_types)}"
                             else:
                                 filter_description = f"Type: {len(selected_types)}"
                         
-                        # Strategy Filter anwenden
+                        # Strategy Filter
                         if selected_strategies and strategy_cols:
                             trade_data_filtered = trade_data_filtered[trade_data_filtered[strategy_cols[0]].isin(selected_strategies)]
-                            
                             if filter_description:
                                 filter_description += f" | Strategy: {len(selected_strategies)}"
                             else:
                                 filter_description = f"Strategy: {len(selected_strategies)}"
                         
-                        # Filter-Ergebnis anzeigen
+                        # Filter-Ergebnis
                         if len(trade_data_filtered) > 0:
                             st.success(f"✅ {len(trade_data_filtered)} Trades gefunden: {filter_description}")
                             trade_data = trade_data_filtered
@@ -179,36 +170,63 @@ def show_tat_navigator_page(data_loader, db_path):
                 
                 st.markdown("---")
         
-        # Session State für ausgewählte Zeile initialisieren
+        # Session State für ausgewählte Zeile
         if 'selected_row_index' not in st.session_state:
             st.session_state.selected_row_index = None
         
-        # Alle gefilterten Trades in einer Tabelle anzeigen
+        # Trades anzeigen
         if len(trade_data) > 0:
-            # Erfolgsmeldung mit Anzahl der Trades
             st.success(f"✅ {len(trade_data)} gefilterte Trades gefunden")
             
             # Tabelle vorbereiten
             display_trades = trade_data.copy()
+            
+            # Preisspalten für Arrow/Streamlit bereinigen und numerisch konvertieren
+            price_columns_raw = ['PriceOpen', 'PriceClose', 'PriceShort', 'PriceStopTarget']
+            for raw_col in price_columns_raw:
+                if raw_col in display_trades.columns:
+                    display_trades[raw_col] = display_trades[raw_col].replace(['', 'None', 'nan', 'NaN'], pd.NA)
+                    display_trades[raw_col] = pd.to_numeric(display_trades[raw_col], errors='coerce')
+            
+            # Quantity numerisch erzwingen
+            if 'Qty' in display_trades.columns:
+                display_trades['Qty'] = display_trades['Qty'].replace(['', 'None', 'nan', 'NaN'], pd.NA)
+                display_trades['Qty'] = pd.to_numeric(display_trades['Qty'], errors='coerce')
+            
+            # Profit/P&L-Spalte numerisch machen (für Anzeige und Aggregation)
+            if profit_cols:
+                try:
+                    display_trades[profit_cols[0]] = display_trades[profit_cols[0]].replace(['', 'None', 'nan', 'NaN'], pd.NA)
+                    display_trades[profit_cols[0]] = pd.to_numeric(display_trades[profit_cols[0]], errors='coerce')
+                except Exception:
+                    pass
+            
+            # Falsche Trades entfernen: PriceOpen == 0.0
+            if 'PriceOpen' in display_trades.columns:
+                before_rows = len(display_trades)
+                display_trades = display_trades[~(display_trades['PriceOpen'] == 0.0)]
+                removed_rows = before_rows - len(display_trades)
+                if removed_rows > 0:
+                    st.info(f"🧹 {removed_rows} Trades mit Eröffnungspreis 0.0 entfernt")
             
             # Datum formatieren
             if date_cols:
                 date_col = date_cols[0]
                 display_trades['Date'] = display_trades[date_col].dt.strftime('%d.%m.%Y')
             
-            # Eröffnungszeit formatieren (nur Zeit ohne Datum, mit Sekunden)
+            # Eröffnungszeit formatieren
             if 'DateOpened' in display_trades.columns:
                 display_trades['TimeOnly'] = display_trades['DateOpened'].apply(
                     lambda x: x.strftime('%H:%M:%S') if pd.notna(x) and hasattr(x, 'strftime') else str(x)[-8:] if pd.notna(x) and len(str(x)) >= 8 else str(x)
                 )
             
-            # Schließungszeit formatieren (nur Zeit ohne Datum, mit Sekunden)
+            # Schließungszeit formatieren
             if 'DateClosed' in display_trades.columns:
                 display_trades['TimeClosedOnly'] = display_trades['DateClosed'].apply(
                     lambda x: x.strftime('%H:%M:%S') if pd.notna(x) and hasattr(x, 'strftime') else str(x)[-8:] if pd.notna(x) and len(str(x)) >= 8 else str(x)
                 )
             
-            # Metriken oberhalb der Tabelle
+            # Metriken
             col1, col2, col3, col4 = st.columns(4)
             
             with col1:
@@ -223,25 +241,19 @@ def show_tat_navigator_page(data_loader, db_path):
                     st.metric("💰 P&L Gesamt", "N/A")
             
             with col3:
-                if profit_cols and 'Qty' in trade_data.columns:
-                    # Normalisierte P&L über alle Trades
-                    normalized_values = trade_data.apply(
-                        lambda row: row[profit_cols[0]] / row['Qty'] if pd.notna(row[profit_cols[0]]) and pd.notna(row['Qty']) and row['Qty'] != 0 else 0, 
-                        axis=1
-                    )
-                    total_pnl_normalized = normalized_values.sum()
-                    st.metric("💰 P&L norm. Gesamt", f"{total_pnl_normalized:.2f}")
-                else:
-                    st.metric("💰 P&L norm. Gesamt", "N/A")
-            
-            with col4:
-                # Gestoppte Trades zählen
                 if 'Status' in trade_data.columns:
                     stopped_trades = trade_data[trade_data['Status'] == 'Stopped']
                     total_stopped = len(stopped_trades)
                     st.metric("🛑 Gestoppte Trades", total_stopped)
                 else:
                     st.metric("🛑 Gestoppte Trades", "N/A")
+            
+            with col4:
+                if 'Status' in trade_data.columns:
+                    # Weitere Metrik hier hinzufügen falls gewünscht
+                    st.metric("📊 Status", "Verfügbar")
+                else:
+                    st.metric("📊 Status", "N/A")
             
             # Überschrift für Tabelle
             st.subheader(f"📋 Alle gefilterten Trades")
@@ -253,20 +265,11 @@ def show_tat_navigator_page(data_loader, db_path):
                     lambda x: f"{x:.2f}" if pd.notna(x) else "N/A"
                 )
                 
-                # P&L normalisiert berechnen (P&L / Quantity)
-                if 'Qty' in display_trades.columns:
-                    display_trades['P&L_Normalized'] = display_trades.apply(
-                        lambda row: row[pnl_col] / row['Qty'] if pd.notna(row[pnl_col]) and pd.notna(row['Qty']) and row['Qty'] != 0 else 0, 
-                        axis=1
-                    )
-                    display_trades['P&L_Normalized_Display'] = display_trades['P&L_Normalized'].apply(
-                        lambda x: f"{x:.2f}" if pd.notna(x) else "N/A"
-                    )
+
             
-            # Strike-Preis-Spalten hinzufügen
+            # Strike-Preis-Spalten
             strike_columns = []
             
-            # Short Strike-Preise (wichtiger für Short-Optionen)
             if 'ShortPut' in display_trades.columns:
                 display_trades['🎯 Short Put Strike'] = display_trades['ShortPut'].apply(
                     lambda x: f"{x:.0f}" if pd.notna(x) and x != 0 else "N/A"
@@ -279,12 +282,12 @@ def show_tat_navigator_page(data_loader, db_path):
                 )
                 strike_columns.append('🎯 Short Call Strike')
             
-            # Spalten umbenennen für bessere Anzeige
+            # Spalten umbenennen
             column_mapping = {
                 'Date': '📅 Datum',
-                'TimeOnly': '🕐 Eröffnung',  # Verwende TimeOnly statt DateOpened
+                'TimeOnly': '🕐 Eröffnung',
                 'PriceOpen': '💰 Preis Eröffnung',
-                'TimeClosedOnly': '🕐 Schließung',  # Verwende TimeClosedOnly statt TimeClosed
+                'TimeClosedOnly': '🕐 Schließung',
                 'PriceClose': '💰 Preis Schließung',
                 'TradeType': '📊 Trade Type',
                 'Symbol': '🏷️ Symbol',
@@ -292,13 +295,8 @@ def show_tat_navigator_page(data_loader, db_path):
                 'Commission': '💰 Kommission'
             }
             
-            # Quantity-Spalte umbenennen falls vorhanden
             if 'Qty' in display_trades.columns:
                 column_mapping['Qty'] = '📦 Quantity'
-            
-            # P&L normalisiert Spalte umbenennen falls vorhanden
-            if 'P&L_Normalized_Display' in display_trades.columns:
-                column_mapping['P&L_Normalized_Display'] = '💰 P&L norm.'
             
             if profit_cols:
                 display_trades = display_trades.rename(columns={profit_cols[0]: '💰 P&L'})
@@ -307,29 +305,317 @@ def show_tat_navigator_page(data_loader, db_path):
                 if old_name in display_trades.columns:
                     display_trades = display_trades.rename(columns={old_name: new_name})
             
-            # Wichtige Spalten für Anzeige (mit Strike-Preisen)
+            # Wichtige Spalten für Anzeige
             display_columns = []
             for col in ['📅 Datum', '🕐 Eröffnung', '💰 Preis Eröffnung', '🕐 Schließung', '💰 Preis Schließung', '📊 Trade Type', '📦 Quantity', '💰 P&L']:
                 if col in display_trades.columns:
                     display_columns.append(col)
             
+            # Neue Spalte: Optionspreis Handelsende immer hinzufügen
+            display_trades['📈 Optionspreis Handelsende'] = 'N/A'
+            display_columns.insert(8, '📈 Optionspreis Handelsende')
+            
+            # Neue Spalte: Peak (höchster Optionspreis) hinzufügen
+            display_trades['📊 Peak'] = 'N/A'
+            display_columns.insert(9, '📊 Peak')
+            
+            # Neue Spalte: Peak-Zeit hinzufügen
+            display_trades['🕐 Peak-Zeit'] = 'N/A'
+            display_columns.insert(10, '🕐 Peak-Zeit')
+            
+            # Neue Spalte: API-Link hinzufügen
+            display_trades['🔗 API-Link'] = 'N/A'
+            display_columns.insert(11, '🔗 API-Link')
+            
+            # Handelsende-Preis-Berechnung (immer ausführen)
+            st.markdown("---")
+            st.subheader("📈 Optionspreis Handelsende")
+            
+            # Test-Modus Auswahl
+            test_mode = st.checkbox("🧪 Test-Modus (nur erste 10 Trades)", value=True, help="Reduziert API-Calls für schnelleres Laden")
+            if test_mode:
+                st.info(f"🔄 Test-Modus: Lade Handelsende-Preise für die ersten 10 von {len(display_trades)} Trades...")
+            else:
+                st.info(f"🔄 Produktions-Modus: Lade Handelsende-Preise für alle {len(display_trades)} Trades...")
+            
+            # Debug: Nur wichtige Informationen (Browser nicht überlasten)
+
+            # Trade-Auswahl basierend auf Test-Modus
+            if test_mode:
+                selected_trades = display_trades.head(10)
+                st.info(f"🧪 Test-Modus: Lade nur die ersten 10 von {len(display_trades)} Trades")
+            else:
+                selected_trades = display_trades
+                st.info(f"🚀 Produktions-Modus: Lade alle {len(display_trades)} Trades")
+            
+            # Für jeden Trade Handelsende-Preis abrufen
+            progress_bar = st.progress(0)
+            total_trades = len(selected_trades)
+            
+            for i, (idx, trade) in enumerate(selected_trades.iterrows()):
+                progress = (i + 1) / total_trades
+                progress_bar.progress(progress)
+                
+                try:
+                    # Strike und Optionstyp ermitteln (ohne Debug-Ausgaben)
+                    strike = None
+                    option_type = None
+                    
+                    if 'ShortPut' in trade and pd.notna(trade['ShortPut']) and trade['ShortPut'] != 0:
+                        strike = int(trade['ShortPut'])
+                        option_type = 'P'
+                    elif 'ShortCall' in trade and pd.notna(trade['ShortCall']) and trade['ShortCall'] != 0:
+                        strike = int(trade['ShortCall'])
+                        option_type = 'C'
+                    else:
+                        strike = None
+                        option_type = None
+                    
+                    if strike and option_type and date_cols:
+                        trade_date = trade[date_cols[0]]
+                        if hasattr(trade_date, 'strftime'):
+                            api_date = trade_date.strftime('%Y-%m-%d')
+                            
+                            # API-Link für diesen Trade erstellen
+                            api_link = f"https://api.0dtespx.com/optionPrice?asset=SPX&date={api_date}&interval=1&symbol=-{option_type}{strike}"
+                            display_trades.loc[idx, '🔗 API-Link'] = api_link
+                            
+                            # API-Call für beide Spalten (mit minimaler Debug-Ausgabe)
+                            try:
+                                api_response = get_option_price_data('SPX', api_date, option_type, strike)
+                                
+
+
+                                
+                                # API-Antwort überprüfen
+                                if api_response and isinstance(api_response, list) and len(api_response) > 0:
+                                    
+                                    # Debug für ersten Trade - direkt nach API-Antwort
+                                    if i == 0:
+                                        st.write(f"🔍 **TRADE-ERÖFFNUNG DEBUG (Trade {i+1}):**")
+                                        st.write(f"  📊 TimeOnly String: '{trade.get('TimeOnly', 'N/A')}'")
+                                        st.write(f"  📊 🕐 Eröffnung Spalte: '{trade.get('🕐 Eröffnung', 'N/A')}'")
+                                        st.write(f"  📊 Trade-Datum: {trade.get(date_cols[0], 'N/A')}")
+                                        st.write("---")
+
+                                    
+                                                                        # Verfallpreis wird nicht mehr benötigt - entfernt
+                                    
+                                    # Optionspreis Handelsende (22:00 oder letzter verfügbarer)
+                                    handelsende_preis = None
+                                    
+                                    # Suche nach 22:00 Uhr Preis
+                                    for data_point in api_response:
+                                        if isinstance(data_point, dict):
+                                            time_str = data_point.get('time') or data_point.get('timestamp')
+                                            if time_str and '22:00' in str(time_str):
+                                                price_str = data_point.get('price') or data_point.get('value') or data_point.get('close')
+                                                if price_str:
+                                                    try:
+                                                        # String zu Float konvertieren und Format-Probleme beheben
+                                                        price_clean = str(price_str).strip()
+                                                        price_clean = price_clean.replace(',', '.').replace('$', '').replace(' ', '')
+                                                        handelsende_preis = float(price_clean)
+                                                        break
+                                                    except (ValueError, TypeError):
+                                                        continue
+                                    
+                                    # Wenn kein 22:00 Preis, nimm den letzten verfügbaren
+                                    if not handelsende_preis and len(api_response) > 0:
+                                        last_data = api_response[-1]
+                                        if isinstance(last_data, dict):
+                                            price_str = last_data.get('price') or last_data.get('value') or last_data.get('close')
+                                            if price_str:
+                                                try:
+                                                    # String zu Float konvertieren und Format-Probleme beheben
+                                                    price_clean = str(price_str).strip()
+                                                    price_clean = price_clean.replace(',', '.').replace('$', '').replace(' ', '')
+                                                    handelsende_preis = float(price_clean)
+                                                except (ValueError, TypeError):
+                                                    handelsende_preis = None
+                                    
+                                    # Setze Handelsende-Preis
+                                    if handelsende_preis is not None:
+                                        display_trades.loc[idx, '📈 Optionspreis Handelsende'] = f"{handelsende_preis:.3f}"
+                                    else:
+                                        display_trades.loc[idx, '📈 Optionspreis Handelsende'] = 'Keine Daten'
+                                    
+                                    # Peak (höchster Optionspreis) berechnen - Max-Wert aus allen Datenpunkten
+                                    peak_preis = None
+                                    
+
+                                    
+                                                                        # STABILE PEAK-FINDER FUNKTION
+                                    # 1. Alle API-Datenpunkte in DataFrame laden
+                                    peak_data = []
+                                    
+                                    for data_point in api_response:
+                                        if isinstance(data_point, dict):
+                                            # Zeitstempel des API-Datenpunkts
+                                            data_time = data_point.get('dateTime') or data_point.get('time') or data_point.get('timestamp')
+                                            price = data_point.get('price') or data_point.get('value') or data_point.get('close')
+                                            
+                                            if data_time and isinstance(data_time, (int, float)) and price:
+                                                try:
+                                                    # String zu Float konvertieren
+                                                    price_str = str(price).strip()
+                                                    price_str = price_str.replace(',', '.').replace('$', '').replace(' ', '')
+                                                    price_float = float(price_str)
+                                                    
+                                                    # API-Zeitstempel ist UTC, konvertiere zu UTC datetime
+                                                    data_datetime_utc = datetime.datetime.utcfromtimestamp(data_time)
+                                                    
+                                                    # Konvertiere API-UTC-Zeit zu Bern-Zeit
+                                                    if data_datetime_utc.month in [3, 4, 5, 6, 7, 8, 9, 10]:
+                                                        data_datetime_bern = data_datetime_utc + datetime.timedelta(hours=2)  # Sommer (CEST)
+                                                    else:
+                                                        data_datetime_bern = data_datetime_utc + datetime.timedelta(hours=1)  # Winter (CET)
+                                                    
+                                                    # Datenpunkt zum DataFrame hinzufügen
+                                                    peak_data.append({
+                                                        'timestamp': data_time,
+                                                        'price': price_float,
+                                                        'datetime_bern': data_datetime_bern,
+                                                        'datetime_utc': data_datetime_utc
+                                                    })
+                                                except (ValueError, TypeError):
+                                                    continue
+                                    
+                                    # 2. DataFrame erstellen
+                                    if peak_data:
+                                        peak_df = pd.DataFrame(peak_data)
+                                        
+
+                                        
+                                        # 3. Nach Eröffnungszeit filtern (falls verfügbar)
+                                        trade_open_datetime = None
+                                        trade_open_time_str = trade.get('🕐 Eröffnung', '')
+                                        
+                                        if trade_open_time_str and isinstance(trade_open_time_str, str) and ':' in trade_open_time_str:
+                                            # Trade-Eröffnungszeit zu datetime konvertieren
+                                            trade_date_obj = trade[date_cols[0]]
+                                            if hasattr(trade_date_obj, 'date'):
+                                                trade_date_only = trade_date_obj.date()
+                                            else:
+                                                trade_date_only = datetime.datetime.now().date()
+                                            
+                                            trade_open_datetime = datetime.datetime.combine(
+                                                trade_date_only, 
+                                                datetime.datetime.strptime(trade_open_time_str, '%H:%M:%S').time()
+                                            )
+                                            
+
+                                            
+
+                                        
+                                        # 4. Nach Eröffnungszeit filtern
+                                        if trade_open_datetime is not None:
+                                            peak_df_filtered = peak_df[peak_df['datetime_bern'] >= trade_open_datetime]
+                                            
+
+                                        else:
+                                            # Keine Eröffnungszeit verfügbar - alle Datenpunkte verwenden
+                                            peak_df_filtered = peak_df
+                                        
+                                                                                # 5. Peak finden (negativster Preis für Short-Optionen)
+                                        if len(peak_df_filtered) > 0:
+                                            # Bei Short-Optionen: Negativster Preis = größter Verlust
+                                            peak_idx = peak_df_filtered['price'].idxmin()
+                                            peak_preis = peak_df_filtered.loc[peak_idx, 'price']
+                                            peak_time = peak_df_filtered.loc[peak_idx, 'timestamp']
+                                            peak_datetime_bern = peak_df_filtered.loc[peak_idx, 'datetime_bern']
+                                            
+                                            # Peak-Datenframe anzeigen (nur für ersten Trade)
+                                            if i == 0:
+                                                st.subheader("📊 Peak-Datenframe (erster Trade)")
+                                                st.write(f"**Trade-Eröffnungszeit:** {trade_open_datetime}")
+                                                st.write(f"**Anzahl Datenpunkte:** {len(peak_df_filtered)}")
+                                                st.write(f"**Peak-Preis:** {peak_preis}")
+                                                st.write(f"**Peak-Zeit:** {peak_datetime_bern}")
+                                                
+                                                # Erste 10 Zeilen anzeigen
+                                                st.write("**Erste 10 Datenpunkte:**")
+                                                display_df = peak_df_filtered.head(10).copy()
+                                                display_df['datetime_bern'] = display_df['datetime_bern'].dt.strftime('%H:%M:%S')
+                                                display_df['datetime_utc'] = display_df['datetime_utc'].dt.strftime('%H:%M:%S')
+                                                st.dataframe(display_df, use_container_width=True)
+                                                
+                                                # Statistiken
+                                                st.write("**Preis-Statistiken:**")
+                                                st.write(f"Min (Peak): {peak_df_filtered['price'].min():.3f}")
+                                                st.write(f"Max: {peak_df_filtered['price'].max():.3f}")
+                                                st.write(f"Durchschnitt: {peak_df_filtered['price'].mean():.3f}")
+                                                st.write("---")
+                                        else:
+                                            peak_preis = None
+                                            peak_time = None
+                                            peak_datetime_bern = None
+                                    else:
+                                        peak_preis = None
+                                        peak_time = None
+                                    
+
+                                    
+                                    # Setze Peak-Preis und Peak-Zeit
+                                    if peak_preis is not None:
+                                        # Peak-Preis setzen
+                                        display_trades.loc[idx, '📊 Peak'] = f"{float(peak_preis):.3f}"
+                                        
+                                        # Peak-Zeit direkt aus dem DataFrame in lesbarer Bern-Zeit setzen
+                                        if peak_datetime_bern is not None:
+                                            try:
+                                                # Direkt aus dem DataFrame: bereits in Bern-Zeit
+                                                peak_time_formatted = peak_datetime_bern.strftime('%H:%M:%S')
+                                                display_trades.loc[idx, '🕐 Peak-Zeit'] = peak_time_formatted
+                                            except Exception:
+                                                display_trades.loc[idx, '🕐 Peak-Zeit'] = 'Zeit-Fehler'
+                                        else:
+                                            display_trades.loc[idx, '🕐 Peak-Zeit'] = 'Keine Zeit'
+                                    else:
+                                        display_trades.loc[idx, '📊 Peak'] = 'Keine Daten'
+                                        display_trades.loc[idx, '🕐 Peak-Zeit'] = 'Keine Daten'
+                                        
+                                else:
+
+                                    
+                                    display_trades.loc[idx, '📈 Optionspreis Handelsende'] = 'Keine API-Daten'
+                                    display_trades.loc[idx, '📊 Peak'] = 'Keine API-Daten'
+                                    display_trades.loc[idx, '🕐 Peak-Zeit'] = 'Keine API-Daten'
+                                    display_trades.loc[idx, '🔗 API-Link'] = 'Keine API-Daten'
+                            except Exception as api_error:
+
+                                
+                                display_trades.loc[idx, '📈 Optionspreis Handelsende'] = 'API Probleme'
+                                display_trades.loc[idx, '📊 Peak'] = 'API Probleme'
+                                display_trades.loc[idx, '🕐 Peak-Zeit'] = 'API Probleme'
+                                display_trades.loc[idx, '🔗 API-Link'] = 'API Probleme'
+                            
+                            # Kurze Pause zwischen API-Calls (Dashboard nicht überlasten)
+                            time.sleep(0.1)
+                    else:
+                        display_trades.loc[idx, '📈 Optionspreis Handelsende'] = 'Keine Option'
+                        display_trades.loc[idx, '📊 Peak'] = 'Keine Option'
+                        display_trades.loc[idx, '🕐 Peak-Zeit'] = 'Keine Option'
+                        display_trades.loc[idx, '🔗 API-Link'] = 'Keine Option'
+                    
+                except Exception as e:
+                    display_trades.loc[idx, '📈 Optionspreis Handelsende'] = 'Fehler'
+                    display_trades.loc[idx, '📊 Peak'] = 'Fehler'
+                    display_trades.loc[idx, '🕐 Peak-Zeit'] = 'Fehler'
+                    display_trades.loc[idx, '🔗 API-Link'] = 'Fehler'
+            
+            progress_bar.empty()
+            st.success(f"✅ Handelsende-Preise geladen")
+            
+            # Handelsende-Preis-Werte sind gesetzt
+            
             # Strike-Preis-Spalten hinzufügen
             display_columns.extend(strike_columns)
             
-            # Summenzeile hinzufügen
+            # Summenzeile
             if profit_cols:
                 total_pnl = trade_data[profit_cols[0]].sum()
                 
-                # Normalisierte P&L Summe berechnen
-                total_pnl_normalized = 0
-                if 'Qty' in trade_data.columns:
-                    normalized_values = trade_data.apply(
-                        lambda row: row[profit_cols[0]] / row['Qty'] if pd.notna(row[profit_cols[0]]) and pd.notna(row['Qty']) and row['Qty'] != 0 else 0, 
-                        axis=1
-                    )
-                    total_pnl_normalized = normalized_values.sum()
-                
-                # Summenzeile erstellen
                 summary_data = {
                     '📅 Datum': 'GESAMT:',
                     '🕐 Eröffnung': '',
@@ -341,13 +627,19 @@ def show_tat_navigator_page(data_loader, db_path):
                     '💰 P&L': f"{total_pnl:.2f}"
                 }
                 
-                # Strike-Preis-Spalten in Summenzeile mit leeren Werten
+                # Optionspreis Handelsende zur Summenzeile
+                if '📈 Optionspreis Handelsende' in display_columns:
+                    summary_data['📈 Optionspreis Handelsende'] = ''
+                
+                # Peak zur Summenzeile
+                if '📊 Peak' in display_columns:
+                    summary_data['📊 Peak'] = ''
+                
+                # Strike-Preis-Spalten
                 for strike_col in strike_columns:
                     summary_data[strike_col] = ''
                 
                 summary_row = pd.DataFrame([summary_data])
-                
-                # Tabelle mit Summenzeile kombinieren
                 final_table = pd.concat([display_trades[display_columns], summary_row], ignore_index=True)
             else:
                 final_table = display_trades[display_columns]
@@ -361,200 +653,16 @@ def show_tat_navigator_page(data_loader, db_path):
                 )
             except Exception as e:
                 st.error(f"❌ Fehler beim Anzeigen der Tabelle: {e}")
-                st.info("💡 Versuche alternative Anzeige...")
                 st.text(final_table.to_string())
             
             # API-Test Button
             if st.button("🧪 API-Verbindung testen", key="api_test"):
                 test_api_connection()
             
-            # Optionspreis-Chart mit interaktiver Tabellenauswahl
+            # Vereinfachte Chart-Funktionalität
             st.subheader("📈 Optionspreis-Chart")
+            st.info("📊 Chart-Funktionalität wird geladen...")
             
-            # Sammle alle Short-Optionen für Charts
-            short_options = []
-            
-            # Short Put Optionen sammeln
-            if 'ShortPut' in trade_data.columns:
-                for idx, trade in trade_data.iterrows():
-                    if pd.notna(trade['ShortPut']) and trade['ShortPut'] != 0:
-                        trade_type = trade.get('TradeType', 'N/A')
-                        time_opened = trade.get('DateOpened', 'N/A')
-                        short_options.append({
-                            'row_index': idx,
-                            'type': 'P',
-                            'strike': int(trade['ShortPut']),
-                            'trade_info': trade.to_dict(),
-                            'label': f"🔴 Put {trade['ShortPut']:.0f} - {trade_type} - {time_opened}"
-                        })
-            
-            # Short Call Optionen sammeln
-            if 'ShortCall' in trade_data.columns:
-                for idx, trade in trade_data.iterrows():
-                    if pd.notna(trade['ShortCall']) and trade['ShortCall'] != 0:
-                        trade_type = trade.get('TradeType', 'N/A')
-                        time_opened = trade.get('DateOpened', 'N/A')
-                        short_options.append({
-                            'row_index': idx,
-                            'type': 'C',
-                            'strike': int(trade['ShortCall']),
-                            'trade_info': trade.to_dict(),
-                            'label': f"🟢 Call {trade['ShortCall']:.0f} - {trade_type} - {time_opened}"
-                        })
-            
-            if short_options:
-                # Buttons für jede Option erstellen
-                st.markdown("**🎯 Klicken Sie auf eine Option für den Chart:**")
-                
-                # Buttons in Spalten anordnen
-                cols = st.columns(min(3, len(short_options)))
-                for i, option in enumerate(short_options):
-                    col_idx = i % 3
-                    with cols[col_idx]:
-                        if st.button(
-                            option['label'], 
-                            key=f"option_btn_{option['row_index']}",
-                            use_container_width=True
-                        ):
-                            st.session_state.selected_row_index = option['row_index']
-                            st.rerun()
-                
-                # Ausgewählte Option finden
-                selected_option = None
-                if st.session_state.selected_row_index is not None:
-                    for opt in short_options:
-                        if opt['row_index'] == st.session_state.selected_row_index:
-                            selected_option = opt
-                            break
-                
-                if selected_option:
-                    # Chart für gewählte Option anzeigen
-                    st.info(f"📊 Chart für {selected_option['type']}{selected_option['strike']} wird geladen...")
-                    
-                    # Datum für API-Request formatieren
-                    if date_cols:
-                        # Verwende das erste verfügbare Datum aus den gefilterten Daten
-                        first_date = trade_data[date_cols[0]].dt.date.iloc[0]
-                        api_date = first_date.strftime('%Y-%m-%d')
-                        
-                        # Beide Charts laden
-                        with st.spinner("🔄 Lade API-Daten..."):
-                            # SPX/VIX Daten laden
-                            spx_vix_data = get_spx_vix_data(api_date)
-                            
-                            # Optionspreis-Daten laden
-                            chart_data = get_option_price_data('SPX', api_date, selected_option['type'], selected_option['strike'])
-                        
-                        # Charts anzeigen
-                        if spx_vix_data and chart_data:
-                            st.success(f"✅ API-Daten erfolgreich geladen!")
-                            
-                            # Optionspreis-Chart mit SPX
-                            with st.spinner("🔄 Erstelle Optionspreis-Chart..."):
-                                options_chart = create_options_price_chart(
-                                    chart_data, 
-                                    selected_option['type'], 
-                                    selected_option['strike'], 
-                                    api_date, 
-                                    selected_option['trade_info']
-                                )
-                                
-                                if options_chart:
-                                    st.subheader(f"📈 {selected_option['type']}{selected_option['strike']} Optionspreis + SPX")
-                                    st.plotly_chart(options_chart, use_container_width=True, height=600)
-                                else:
-                                    st.warning("⚠️ Fehler beim Erstellen des Optionspreis-Charts")
-                            
-                            # SPX/VIX Chart
-                            with st.spinner("🔄 Erstelle SPX/VIX Chart..."):
-                                spx_vix_chart = create_spx_vix_chart(spx_vix_data, api_date, selected_option['trade_info'])
-                                
-                                if spx_vix_chart:
-                                    st.subheader("📊 SPX & VIX Chart")
-                                    st.plotly_chart(spx_vix_chart, use_container_width=True, height=400)
-                                else:
-                                    st.warning("⚠️ Fehler beim Erstellen des SPX/VIX Charts")
-                            
-                        elif spx_vix_data:
-                            st.info(f"✅ SPX/VIX API-Daten erhalten: {len(spx_vix_data)} Datenpunkte")
-                            st.warning(f"⚠️ Keine Optionspreis-API-Daten für {selected_option['type']}{selected_option['strike']} verfügbar")
-                            
-                            # Nur SPX/VIX Chart anzeigen
-                            with st.spinner("🔄 Erstelle SPX/VIX Chart..."):
-                                spx_vix_chart = create_spx_vix_chart(spx_vix_data, api_date, selected_option['trade_info'])
-                                
-                                if spx_vix_chart:
-                                    st.subheader("📊 SPX & VIX Chart")
-                                    st.plotly_chart(spx_vix_chart, use_container_width=True, height=400)
-                                else:
-                                    st.warning("⚠️ Fehler beim Erstellen des SPX/VIX Charts")
-                            
-                        elif chart_data:
-                            st.info(f"✅ Optionspreis-Daten erhalten für {selected_option['type']}{selected_option['strike']}")
-                            st.warning("⚠️ Keine SPX/VIX API-Daten verfügbar")
-                            
-                            # Nur Optionspreis-Chart anzeigen
-                            with st.spinner("🔄 Erstelle Optionspreis-Chart..."):
-                                options_chart = create_options_price_chart(
-                                    chart_data, 
-                                    selected_option['type'], 
-                                    selected_option['strike'], 
-                                    api_date, 
-                                    selected_option['trade_info']
-                                )
-                                
-                                if options_chart:
-                                    st.subheader(f"📈 {selected_option['type']}{selected_option['strike']} Optionspreis")
-                                    st.plotly_chart(options_chart, use_container_width=True, height=600)
-                                else:
-                                    st.warning("⚠️ Fehler beim Erstellen des Optionspreis-Charts")
-                        else:
-                            st.warning("⚠️ Keine API-Daten verfügbar")
-                            st.info("💡 Versuchen Sie es mit einem anderen Strike oder Datum")
-                    
-                    # Trade-Details anzeigen
-                    st.markdown("### 📋 Trade-Details")
-                    col1, col2, col3 = st.columns(3)
-                    
-                    trade_info = selected_option['trade_info']
-                    
-                    with col1:
-                        if 'DateOpened' in trade_info and pd.notna(trade_info['DateOpened']):
-                            st.metric("🕐 Eröffnung", str(trade_info['DateOpened']))
-                        if 'TimeClosed' in trade_info and pd.notna(trade_info['TimeClosed']):
-                            st.metric("🕐 Schließung", str(trade_info['TimeClosed']))
-                    
-                    with col2:
-                        if 'TradeType' in trade_info and pd.notna(trade_info['TradeType']):
-                            st.metric("📊 Trade Type", str(trade_info['TradeType']))
-                        if 'Qty' in trade_info and pd.notna(trade_info['Qty']):
-                            st.metric("📦 Quantity", str(trade_info['Qty']))
-                    
-                    with col3:
-                        if profit_cols and profit_cols[0] in trade_info and pd.notna(trade_info[profit_cols[0]]):
-                            pnl = trade_info[profit_cols[0]]
-                            pnl_color = "🟢" if pnl > 0 else "🔴" if pnl < 0 else "⚪"
-                            st.metric(f"{pnl_color} P&L", f"{pnl:.2f}")
-                        if 'PriceStopTarget' in trade_info and pd.notna(trade_info['PriceStopTarget']):
-                            st.metric("🎯 Stoppreis", f"{trade_info['PriceStopTarget']:.2f}")
-                    
-                    # Zusätzliche Zeile für Preise
-                    col4, col5, col6 = st.columns(3)
-                    
-                    with col4:
-                        if 'PriceOpen' in trade_info and pd.notna(trade_info['PriceOpen']):
-                            st.metric("💰 Preis Eröffnung", f"{trade_info['PriceOpen']:.3f}")
-                    
-                    with col5:
-                        if 'PriceClose' in trade_info and pd.notna(trade_info['PriceClose']):
-                            st.metric("💰 Preis Schließung", f"{trade_info['PriceClose']:.3f}")
-                    
-                    with col6:
-                        if 'PriceShort' in trade_info and pd.notna(trade_info['PriceShort']):
-                            st.metric("💰 Preis Short", f"{trade_info['PriceShort']:.3f}")
-            else:
-                st.info("📊 Keine Short-Optionen für Charts verfügbar")
-        
         else:
             st.warning("⚠️ Keine gefilterten Trades gefunden!")
         

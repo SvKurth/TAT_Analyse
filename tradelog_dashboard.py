@@ -8,12 +8,8 @@ import streamlit as st
 import pandas as pd
 from pathlib import Path
 import sys
-import plotly.graph_objects as go
-import numpy as np
-from datetime import datetime, timedelta
-import warnings
-import requests
-import json
+import tempfile
+import uuid
 
 # Projektverzeichnis zum Python-Pfad hinzufügen
 project_root = Path(__file__).parent
@@ -22,22 +18,18 @@ sys.path.insert(0, str(project_root / "src"))
 from app.services.trade_data_service import TradeDataService
 from src.utils import load_config
 
-def is_sqlite_file(file_path: str) -> bool:
-    """Prüft, ob eine Datei eine SQLite-Datenbank ist."""
-    sqlite_extensions = ['.db', '.db3', '.sqlite', '.sqlite3']
-    file_path = Path(file_path)
-    
-    # Prüfe Dateiendung
-    if file_path.suffix.lower() in sqlite_extensions:
-        return True
-    
-    # Prüfe Dateiinhalt (SQLite-Header)
-    try:
-        with open(file_path, 'rb') as f:
-            header = f.read(16)
-            return header.startswith(b'SQLite format 3')
-    except:
-        return False
+# Module imports
+from modules.overview_page import show_overview_page
+from modules.trade_table_page import show_trade_table_page
+from modules.api_charts import test_api_connection
+from utils.database_utils import is_sqlite_file
+
+# Projektverzeichnis zum Python-Pfad hinzufügen
+project_root = Path(__file__).parent
+sys.path.insert(0, str(project_root / "src"))
+
+from app.services.trade_data_service import TradeDataService
+from src.utils import load_config
 
 # Seite konfigurieren
 st.set_page_config(
@@ -137,101 +129,7 @@ def show_page(page, data_loader, db_path):
     elif page == "🎯 TAT Tradenavigator":
         show_tat_navigator_page(data_loader, db_path)
 
-def show_overview_page(data_loader, db_path):
-    """Zeigt die Übersichtsseite an."""
-    st.header("📋 Übersicht")
-    st.write("Willkommen beim Tradelog Dashboard!")
-    
-    try:
-        # Datenbankinformationen anzeigen
-        db_info = data_loader.get_sqlite_table_info(db_path)
-        st.subheader("🗄️ Datenbankdetails")
-        st.write(f"**Pfad:** {db_path}")
-        st.write(f"**Größe:** {Path(db_path).stat().st_size / 1024 / 1024:.2f} MB")
-        
-        # Verfügbare Tabellen
-        st.subheader("📋 Verfügbare Tabellen")
-        for table_name, table_info in db_info['tables'].items():
-            with st.expander(f"📊 {table_name} ({table_info['row_count']} Zeilen)"):
-                st.write(f"**Spalten:** {len(table_info['columns'])}")
-                
-                # Spaltenliste
-                st.write("**Spalten:**")
-                for col in table_info['columns']:
-                    pk_indicator = " 🔑" if col.get('pk', 0) > 0 else ""
-                    st.write(f"- {col['name']} ({col['type']}){pk_indicator}")
-                
-                # Beispieldaten
-                if table_info['sample_data']:
-                    st.write("**Beispieldaten:**")
-                    sample_df = pd.DataFrame(table_info['sample_data'], columns=table_info['column_names'])
-                    st.dataframe(sample_df, use_container_width=True)
-                    
-    except Exception as e:
-        st.error(f"❌ Fehler beim Laden der Datenbankinformationen: {e}")
-
-def show_trade_table_page(data_loader, db_path):
-    """Zeigt die Trade-Tabelle auf einer separaten Seite an."""
-    st.header("📈 Trade-Tabelle")
-    
-    try:
-        # Trade-Tabelle laden
-        trade_data = data_loader.load_trade_table(db_path)
-        st.success(f"✅ Trade-Tabelle geladen: {len(trade_data)} Zeilen, {len(trade_data.columns)} Spalten")
-        
-
-        
-        # Metriken
-        col1, col2, col3 = st.columns(3)
-        with col1:
-            st.metric("Gesamt Trades", len(trade_data))
-        with col2:
-            st.metric("Spalten", len(trade_data.columns))
-        with col3:
-            st.metric("Datenbank", Path(db_path).name)
-        
-        # Komplette Tabelle anzeigen
-        st.subheader("📊 Komplette Trade-Tabelle")
-        st.dataframe(trade_data, use_container_width=True)
-        
-        # CSV-Export
-        csv = trade_data.to_csv(index=False)
-        st.download_button(
-            label="📥 CSV herunterladen",
-            data=csv,
-            file_name="trade_tabelle.csv",
-            mime="text/csv"
-        )
-        
-    except Exception as e:
-        st.error(f"❌ Fehler beim Laden der Trade-Tabelle: {e}")
-        st.info("💡 Verfügbare Tabellen werden angezeigt...")
-        
-        # Fallback: Verfügbare Tabellen anzeigen
-        try:
-            db_info = data_loader.get_sqlite_table_info(db_path)
-            st.subheader("📋 Verfügbare Tabellen in der Datenbank")
-            
-            for table_name, table_info in db_info['tables'].items():
-                with st.expander(f"📊 {table_name} ({table_info['row_count']} Zeilen)"):
-                    st.write(f"**Spalten:** {len(table_info['columns'])}")
-                    
-                    # Spaltenliste
-                    st.write("**Spalten:**")
-                    for col in table_info['columns']:
-                        pk_indicator = " 🔑" if col.get('pk', 0) > 0 else ""
-                        st.write(f"- {col['name']} ({col['type']}){pk_indicator}")
-                    
-                    # Beispieldaten
-                    if table_info['sample_data']:
-                        st.write("**Beispieldaten:**")
-                        sample_df = pd.DataFrame(table_info['sample_data'], columns=table_info['column_names'])
-                        st.dataframe(sample_df, use_container_width=True)
-                        
-        except Exception as e2:
-            st.error(f"❌ Fehler beim Laden der Tabelleninformationen: {e2}")
-
-def show_metrics_page(data_loader, db_path):
+# Module-Funktionen sind bereits importiert
     """Zeigt die Metriken-Seite mit Kacheln an."""
     st.header("📊 Metriken")
     

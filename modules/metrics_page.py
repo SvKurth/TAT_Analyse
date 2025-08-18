@@ -32,6 +32,7 @@ def show_metrics_page(data_loader, db_path):
                 
                 # Datum-Eingaben
                 col1, col2 = st.columns(2)
+                
                 with col1:
                     # Startdatum
                     start_date = st.date_input(
@@ -44,6 +45,7 @@ def show_metrics_page(data_loader, db_path):
                     # Direkt im Session State speichern
                     if start_date != st.session_state.get('start_date'):
                         st.session_state.start_date = start_date
+                
                 with col2:
                     # Enddatum
                     end_date = st.date_input(
@@ -210,6 +212,7 @@ def show_metrics_page(data_loader, db_path):
         
         # Berechne Metriken
         total_trades = len(trade_data)
+        
         if profit_cols:
             profit_col = profit_cols[0]
             total_profit = trade_data[profit_col].sum()
@@ -615,14 +618,32 @@ def show_metrics_page(data_loader, db_path):
             st.subheader("📈 P&L Chart & Equity Curve")
             
             try:
-                # Daten für Chart vorbereiten
+                # Daten für Chart vorbereiten und bereinigen
                 chart_data = trade_data.copy()
+                
+                # Leere Strings und ungültige Werte in Profit-Spalte bereinigen
+                chart_data[profit_cols[0]] = chart_data[profit_cols[0]].replace(['', 'None', 'nan', 'NaN'], pd.NA)
+                
+                # Leere Werte und ungültige Daten bereinigen
+                chart_data = chart_data.dropna(subset=[profit_cols[0], date_cols[0]])
+                
+                # Sicherstellen, dass Profit-Spalte numerisch ist
+                chart_data[profit_cols[0]] = pd.to_numeric(chart_data[profit_cols[0]], errors='coerce')
+                chart_data = chart_data.dropna(subset=[profit_cols[0]])
+                
+                # Nur Daten mit gültigen Werten verarbeiten
+                if len(chart_data) == 0:
+                    st.warning("⚠️ Keine gültigen Daten für das Chart verfügbar")
+                    return
                 
                 # Datumsspalte als datetime konvertieren
                 if chart_data[date_cols[0]].dtype == 'object':
                     chart_data[date_cols[0]] = pd.to_datetime(chart_data[date_cols[0]], errors='coerce')
                 
-                if pd.api.types.is_datetime64_any_dtype(chart_data[date_cols[0]]):
+                # Ungültige Datumswerte entfernen
+                chart_data = chart_data.dropna(subset=[date_cols[0]])
+                
+                if pd.api.types.is_datetime64_any_dtype(chart_data[date_cols[0]]) and len(chart_data) > 0:
                     # Nach Datum sortieren
                     chart_data = chart_data.sort_values(date_cols[0])
                     
@@ -630,19 +651,35 @@ def show_metrics_page(data_loader, db_path):
                     chart_data['Cumulative_PnL'] = chart_data[profit_cols[0]].cumsum()
                     
                     # Tägliche P&L gruppieren
-                    daily_pnl = chart_data.groupby(chart_data[date_cols[0]].dt.date)[profit_cols[0]].sum().reset_index()
-                    daily_pnl[date_cols[0]] = pd.to_datetime(daily_pnl[date_cols[0]])
-                    daily_pnl = daily_pnl.sort_values(date_cols[0])
-                    
-                    # Kumulative P&L für Equity Curve
-                    daily_pnl['Cumulative_PnL'] = daily_pnl[profit_cols[0]].cumsum()
+                    try:
+                        daily_pnl = chart_data.groupby(chart_data[date_cols[0]].dt.date)[profit_cols[0]].sum().reset_index()
+                        daily_pnl[date_cols[0]] = pd.to_datetime(daily_pnl[date_cols[0]])
+                        daily_pnl = daily_pnl.sort_values(date_cols[0])
+                        
+                        # Kumulative P&L für Equity Curve
+                        daily_pnl['Cumulative_PnL'] = daily_pnl[profit_cols[0]].cumsum()
+                        
+                        # Sicherstellen, dass alle Werte numerisch sind
+                        daily_pnl[profit_cols[0]] = pd.to_numeric(daily_pnl[profit_cols[0]], errors='coerce')
+                        daily_pnl['Cumulative_PnL'] = pd.to_numeric(daily_pnl['Cumulative_PnL'], errors='coerce')
+                        
+                        # Ungültige Werte entfernen
+                        daily_pnl = daily_pnl.dropna()
+                        
+                        if len(daily_pnl) == 0:
+                            st.warning("⚠️ Keine gültigen Daten für die Chart-Erstellung verfügbar")
+                            return
+                            
+                    except Exception as e:
+                        st.error(f"❌ Fehler bei der Datenverarbeitung: {e}")
+                        return
                     
                     # Chart erstellen
                     # Einzelnes Chart mit zwei Y-Achsen
                     fig = go.Figure()
                     
                     # Tägliche P&L als Balken (linke Y-Achse) - grün für Gewinne, rot für Verluste
-                    colors = ['green' if x >= 0 else 'red' for x in daily_pnl[profit_cols[0]]]
+                    colors = ['green' if pd.notna(x) and x >= 0 else 'red' for x in daily_pnl[profit_cols[0]]]
                     
                     fig.add_trace(
                         go.Bar(
@@ -708,39 +745,46 @@ def show_metrics_page(data_loader, db_path):
                         daily_pnl_chart['Year'] = daily_pnl_chart[date_cols[0]].dt.isocalendar().year
                         daily_pnl_chart['Week_Label'] = daily_pnl_chart['Year'].astype(str) + '-KW' + daily_pnl_chart['Week'].astype(str).str.zfill(2)
                         
-                        weekly_chart_data = daily_pnl_chart.groupby('Week_Label')[profit_cols[0]].sum().reset_index()
-                        weekly_chart_data = weekly_chart_data.sort_values('Week_Label')
+                        # Sicherstellen, dass Profit-Spalte numerisch ist
+                        daily_pnl_chart[profit_cols[0]] = pd.to_numeric(daily_pnl_chart[profit_cols[0]], errors='coerce')
+                        daily_pnl_chart = daily_pnl_chart.dropna(subset=[profit_cols[0]])
                         
-                        # Erstelle Bar-Chart
-                        fig_weekly = go.Figure()
+                        if len(daily_pnl_chart) > 0:
+                            weekly_chart_data = daily_pnl_chart.groupby('Week_Label')[profit_cols[0]].sum().reset_index()
+                            weekly_chart_data = weekly_chart_data.sort_values('Week_Label')
+                            
+                            # Erstelle Bar-Chart
+                            fig_weekly = go.Figure()
+                            
+                            # Farben basierend auf Profit/Loss
+                            colors = ['#28a745' if pd.notna(x) and x >= 0 else '#dc3545' for x in weekly_chart_data[profit_cols[0]]]
                         
-                        # Farben basierend auf Profit/Loss
-                        colors = ['#28a745' if x >= 0 else '#dc3545' for x in weekly_chart_data[profit_cols[0]]]
-                        
-                        fig_weekly.add_trace(go.Bar(
-                            x=weekly_chart_data['Week_Label'],
-                            y=weekly_chart_data[profit_cols[0]],
-                            marker_color=colors,
-                            name='Wöchentlicher P&L',
-                            hovertemplate='<b>%{x}</b><br>P&L: %{y:,.2f}€<extra></extra>'
-                        ))
-                        
-                        fig_weekly.update_layout(
-                            title="Wöchentliche P&L-Übersicht",
-                            xaxis_title="Kalenderwoche",
-                            yaxis_title="P&L (€)",
-                            height=400,
-                            showlegend=False,
-                            margin=dict(l=50, r=50, t=80, b=50),
-                            plot_bgcolor='white',
-                            paper_bgcolor='white'
-                        )
-                        
-                        # X-Achse rotieren für bessere Lesbarkeit
-                        fig_weekly.update_xaxes(tickangle=45, gridcolor='lightgray', gridwidth=1)
-                        fig_weekly.update_yaxes(gridcolor='lightgray', gridwidth=1)
-                        
-                        st.plotly_chart(fig_weekly, use_container_width=True)
+                            fig_weekly.add_trace(go.Bar(
+                                x=weekly_chart_data['Week_Label'],
+                                y=weekly_chart_data[profit_cols[0]],
+                                marker_color=colors,
+                                name='Wöchentlicher P&L',
+                                hovertemplate='<b>%{x}</b><br>P&L: %{y:,.2f}€<extra></extra>'
+                            ))
+                            
+                            fig_weekly.update_layout(
+                                title="Wöchentliche P&L-Übersicht",
+                                xaxis_title="Kalenderwoche",
+                                yaxis_title="P&L (€)",
+                                height=400,
+                                showlegend=False,
+                                margin=dict(l=50, r=50, t=80, b=50),
+                                plot_bgcolor='white',
+                                paper_bgcolor='white'
+                            )
+                            
+                            # X-Achse rotieren für bessere Lesbarkeit
+                            fig_weekly.update_xaxes(tickangle=45, gridcolor='lightgray', gridwidth=1)
+                            fig_weekly.update_yaxes(gridcolor='lightgray', gridwidth=1)
+                            
+                            st.plotly_chart(fig_weekly, use_container_width=True)
+                        else:
+                            st.warning("⚠️ Keine gültigen Daten für wöchentliches Chart verfügbar")
                     
                     # Monats-Verdichtung als Bar-Chart
                     if len(daily_pnl) > 0:
@@ -750,40 +794,48 @@ def show_metrics_page(data_loader, db_path):
                         # Erstelle Monats-Gruppierung für das Chart
                         daily_pnl_monthly = daily_pnl.copy()
                         daily_pnl_monthly['Month'] = daily_pnl_monthly[date_cols[0]].dt.to_period('M')
-                        monthly_chart_data = daily_pnl_monthly.groupby('Month')[profit_cols[0]].sum().reset_index()
-                        monthly_chart_data['Month_Label'] = monthly_chart_data['Month'].dt.strftime('%b %Y')
-                        monthly_chart_data = monthly_chart_data.sort_values('Month')
                         
-                        # Erstelle Monats-Bar-Chart
-                        fig_monthly = go.Figure()
+                        # Sicherstellen, dass Profit-Spalte numerisch ist
+                        daily_pnl_monthly[profit_cols[0]] = pd.to_numeric(daily_pnl_monthly[profit_cols[0]], errors='coerce')
+                        daily_pnl_monthly = daily_pnl_monthly.dropna(subset=[profit_cols[0]])
                         
-                        # Farben basierend auf Profit/Loss
-                        colors_monthly = ['#28a745' if x >= 0 else '#dc3545' for x in monthly_chart_data[profit_cols[0]]]
+                        if len(daily_pnl_monthly) > 0:
+                            monthly_chart_data = daily_pnl_monthly.groupby('Month')[profit_cols[0]].sum().reset_index()
+                            monthly_chart_data['Month_Label'] = monthly_chart_data['Month'].dt.strftime('%b %Y')
+                            monthly_chart_data = monthly_chart_data.sort_values('Month')
+                            
+                            # Erstelle Monats-Bar-Chart
+                            fig_monthly = go.Figure()
+                            
+                            # Farben basierend auf Profit/Loss
+                            colors_monthly = ['#28a745' if pd.notna(x) and x >= 0 else '#dc3545' for x in monthly_chart_data[profit_cols[0]]]
                         
-                        fig_monthly.add_trace(go.Bar(
-                            x=monthly_chart_data['Month_Label'],
-                            y=monthly_chart_data[profit_cols[0]],
-                            marker_color=colors_monthly,
-                            name='Monatlicher P&L',
-                            hovertemplate='<b>%{x}</b><br>P&L: %{y:,.2f}€<extra></extra>'
-                        ))
-                        
-                        fig_monthly.update_layout(
-                            title="Monatliche P&L-Übersicht",
-                            xaxis_title="Monat",
-                            yaxis_title="P&L (€)",
-                            height=350,
-                            showlegend=False,
-                            margin=dict(l=50, r=50, t=80, b=50),
-                            plot_bgcolor='white',
-                            paper_bgcolor='white'
-                        )
-                        
-                        # X-Achse rotieren für bessere Lesbarkeit
-                        fig_monthly.update_xaxes(tickangle=45, gridcolor='lightgray', gridwidth=1)
-                        fig_monthly.update_yaxes(gridcolor='lightgray', gridwidth=1)
-                        
-                        st.plotly_chart(fig_monthly, use_container_width=True)
+                            fig_monthly.add_trace(go.Bar(
+                                x=monthly_chart_data['Month_Label'],
+                                y=monthly_chart_data[profit_cols[0]],
+                                marker_color=colors_monthly,
+                                name='Monatlicher P&L',
+                                hovertemplate='<b>%{x}</b><br>P&L: %{y:,.2f}€<extra></extra>'
+                            ))
+                            
+                            fig_monthly.update_layout(
+                                title="Monatliche P&L-Übersicht",
+                                xaxis_title="Monat",
+                                yaxis_title="P&L (€)",
+                                height=350,
+                                showlegend=False,
+                                margin=dict(l=50, r=50, t=80, b=50),
+                                plot_bgcolor='white',
+                                paper_bgcolor='white'
+                            )
+                            
+                            # X-Achse rotieren für bessere Lesbarkeit
+                            fig_monthly.update_xaxes(tickangle=45, gridcolor='lightgray', gridwidth=1)
+                            fig_monthly.update_yaxes(gridcolor='lightgray', gridwidth=1)
+                            
+                            st.plotly_chart(fig_monthly, use_container_width=True)
+                        else:
+                            st.warning("⚠️ Keine gültigen Daten für monatliches Chart verfügbar")
                     
                     # Wochentag-Verdichtung als Bar-Chart
                     if len(daily_pnl) > 0:
@@ -802,39 +854,46 @@ def show_metrics_page(data_loader, db_path):
                         }
                         daily_pnl_weekday['Weekday_DE'] = daily_pnl_weekday['Weekday'].map(weekday_names_de)
                         
-                        weekday_chart_data = daily_pnl_weekday.groupby(['Weekday', 'Weekday_DE'])[profit_cols[0]].sum().reset_index()
-                        weekday_chart_data = weekday_chart_data.sort_values('Weekday')
+                        # Sicherstellen, dass Profit-Spalte numerisch ist
+                        daily_pnl_weekday[profit_cols[0]] = pd.to_numeric(daily_pnl_weekday[profit_cols[0]], errors='coerce')
+                        daily_pnl_weekday = daily_pnl_weekday.dropna(subset=[profit_cols[0]])
                         
-                        # Erstelle Wochentag-Bar-Chart
-                        fig_weekday = go.Figure()
+                        if len(daily_pnl_weekday) > 0:
+                            weekday_chart_data = daily_pnl_weekday.groupby(['Weekday', 'Weekday_DE'])[profit_cols[0]].sum().reset_index()
+                            weekday_chart_data = weekday_chart_data.sort_values('Weekday')
+                            
+                            # Erstelle Wochentag-Bar-Chart
+                            fig_weekday = go.Figure()
+                            
+                            # Farben basierend auf Profit/Loss
+                            colors_weekday = ['#28a745' if pd.notna(x) and x >= 0 else '#dc3545' for x in weekday_chart_data[profit_cols[0]]]
                         
-                        # Farben basierend auf Profit/Loss
-                        colors_weekday = ['#28a745' if x >= 0 else '#dc3545' for x in weekday_chart_data[profit_cols[0]]]
-                        
-                        fig_weekday.add_trace(go.Bar(
-                            x=weekday_chart_data['Weekday_DE'],
-                            y=weekday_chart_data[profit_cols[0]],
-                            marker_color=colors_weekday,
-                            name='Wochentag P&L',
-                            hovertemplate='<b>%{x}</b><br>P&L: %{y:,.2f}€<extra></extra>'
-                        ))
-                        
-                        fig_weekday.update_layout(
-                            title="Wochentag P&L-Übersicht",
-                            xaxis_title="Wochentag",
-                            yaxis_title="P&L (€)",
-                            height=350,
-                            showlegend=False,
-                            margin=dict(l=50, r=50, t=80, b=50),
-                            plot_bgcolor='white',
-                            paper_bgcolor='white'
-                        )
-                        
-                        # X-Achse rotieren für bessere Lesbarkeit
-                        fig_weekday.update_xaxes(tickangle=45, gridcolor='lightgray', gridwidth=1)
-                        fig_weekday.update_yaxes(gridcolor='lightgray', gridwidth=1)
-                        
-                        st.plotly_chart(fig_weekday, use_container_width=True)
+                            fig_weekday.add_trace(go.Bar(
+                                x=weekday_chart_data['Weekday_DE'],
+                                y=weekday_chart_data[profit_cols[0]],
+                                marker_color=colors_weekday,
+                                name='Wochentag P&L',
+                                hovertemplate='<b>%{x}</b><br>P&L: %{y:,.2f}€<extra></extra>'
+                            ))
+                            
+                            fig_weekday.update_layout(
+                                title="Wochentag P&L-Übersicht",
+                                xaxis_title="Wochentag",
+                                yaxis_title="P&L (€)",
+                                height=350,
+                                showlegend=False,
+                                margin=dict(l=50, r=50, t=80, b=50),
+                                plot_bgcolor='white',
+                                paper_bgcolor='white'
+                            )
+                            
+                            # X-Achse rotieren für bessere Lesbarkeit
+                            fig_weekday.update_xaxes(tickangle=45, gridcolor='lightgray', gridwidth=1)
+                            fig_weekday.update_yaxes(gridcolor='lightgray', gridwidth=1)
+                            
+                            st.plotly_chart(fig_weekday, use_container_width=True)
+                        else:
+                            st.warning("⚠️ Keine gültigen Daten für Wochentag-Chart verfügbar")
                     
                     # Verdichtungen unter dem P&L Chart - KOMPAKT
                     st.markdown("---")
