@@ -390,13 +390,7 @@ def show_tat_navigator_page(data_loader, db_path):
                                 # API-Antwort überprüfen
                                 if api_response and isinstance(api_response, list) and len(api_response) > 0:
                                     
-                                    # Debug für ersten Trade - direkt nach API-Antwort
-                                    if i == 0:
-                                        st.write(f"🔍 **TRADE-ERÖFFNUNG DEBUG (Trade {i+1}):**")
-                                        st.write(f"  📊 TimeOnly String: '{trade.get('TimeOnly', 'N/A')}'")
-                                        st.write(f"  📊 🕐 Eröffnung Spalte: '{trade.get('🕐 Eröffnung', 'N/A')}'")
-                                        st.write(f"  📊 Trade-Datum: {trade.get(date_cols[0], 'N/A')}")
-                                        st.write("---")
+
 
                                     
                                                                         # Verfallpreis wird nicht mehr benötigt - entfernt
@@ -525,27 +519,7 @@ def show_tat_navigator_page(data_loader, db_path):
                                             peak_time = peak_df_filtered.loc[peak_idx, 'timestamp']
                                             peak_datetime_bern = peak_df_filtered.loc[peak_idx, 'datetime_bern']
                                             
-                                            # Peak-Datenframe anzeigen (nur für ersten Trade)
-                                            if i == 0:
-                                                st.subheader("📊 Peak-Datenframe (erster Trade)")
-                                                st.write(f"**Trade-Eröffnungszeit:** {trade_open_datetime}")
-                                                st.write(f"**Anzahl Datenpunkte:** {len(peak_df_filtered)}")
-                                                st.write(f"**Peak-Preis:** {peak_preis}")
-                                                st.write(f"**Peak-Zeit:** {peak_datetime_bern}")
-                                                
-                                                # Erste 10 Zeilen anzeigen
-                                                st.write("**Erste 10 Datenpunkte:**")
-                                                display_df = peak_df_filtered.head(10).copy()
-                                                display_df['datetime_bern'] = display_df['datetime_bern'].dt.strftime('%H:%M:%S')
-                                                display_df['datetime_utc'] = display_df['datetime_utc'].dt.strftime('%H:%M:%S')
-                                                st.dataframe(display_df, use_container_width=True)
-                                                
-                                                # Statistiken
-                                                st.write("**Preis-Statistiken:**")
-                                                st.write(f"Min (Peak): {peak_df_filtered['price'].min():.3f}")
-                                                st.write(f"Max: {peak_df_filtered['price'].max():.3f}")
-                                                st.write(f"Durchschnitt: {peak_df_filtered['price'].mean():.3f}")
-                                                st.write("---")
+
                                         else:
                                             peak_preis = None
                                             peak_time = None
