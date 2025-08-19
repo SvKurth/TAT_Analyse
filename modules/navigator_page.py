@@ -334,6 +334,56 @@ def show_tat_navigator_page(data_loader, db_path):
             display_trades['🔗 API-Link'] = 'N/A'
             display_columns.insert(11, '🔗 API-Link')
             
+
+            
+            # Neue Spalte: Commission (Comission + CommissionClose) hinzufügen
+            try:
+                # Suche nach den ursprünglichen Commission-Spalten in den Rohdaten
+                commission_cols = []
+                for col in trade_data.columns:
+                    if 'commission' in col.lower() or 'comission' in col.lower():
+                        commission_cols.append(col)
+                
+                if commission_cols:
+                    st.info(f"🔍 Gefundene Commission-Spalten: {commission_cols}")
+                    
+                    # Commission-Werte kombinieren
+                    combined_commission = pd.Series(0.0, index=display_trades.index)
+                    
+                    for col in commission_cols:
+                        if col in trade_data.columns:
+                            # Werte zu numerischen Werten konvertieren und zu combined_commission addieren
+                            col_values = pd.to_numeric(trade_data[col], errors='coerce').fillna(0)
+                            # Nur die Zeilen hinzufügen, die in display_trades vorhanden sind
+                            if len(col_values) == len(display_trades):
+                                combined_commission += col_values
+                            else:
+                                # Fallback: Verwende den ursprünglichen Index
+                                for idx in display_trades.index:
+                                    if idx in trade_data.index:
+                                        combined_commission.loc[idx] += col_values.get(idx, 0)
+                    
+                    # Formatierung: 2 Dezimalstellen für Commission
+                    formatted_commission = []
+                    for comm in combined_commission:
+                        if pd.isna(comm) or comm == 0:
+                            formatted_commission.append('0.00')
+                        else:
+                            formatted_commission.append(f"{comm:.2f}")
+                    
+                    display_trades['💰 Commission'] = formatted_commission
+                    display_columns.insert(13, '💰 Commission')
+                    
+                else:
+                    st.warning("⚠️ Keine Commission-Spalten in den Trade-Daten gefunden")
+                    display_trades['💰 Commission'] = 'N/A'
+                    display_columns.insert(13, '💰 Commission')
+                    
+            except Exception as e:
+                st.warning(f"⚠️ Konnte Commission-Spalte nicht hinzufügen: {e}")
+                display_trades['💰 Commission'] = 'N/A'
+                display_columns.insert(13, '💰 Commission')
+            
             # Handelsende-Preis-Berechnung (immer ausführen)
             st.markdown("---")
             st.subheader("📈 Optionspreis Handelsende")
@@ -720,6 +770,12 @@ def show_tat_navigator_page(data_loader, db_path):
                 # Strike-Preis-Spalten
                 for strike_col in strike_columns:
                     summary_data[strike_col] = ''
+                
+
+                
+                # Commission-Spalte zur Summenzeile
+                if '💰 Commission' in display_columns:
+                    summary_data['💰 Commission'] = ''
                 
                 summary_row = pd.DataFrame([summary_data])
                 final_table = pd.concat([display_trades[display_columns], summary_row], ignore_index=True)
