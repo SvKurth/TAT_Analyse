@@ -27,6 +27,93 @@ def show_tat_navigator_page(data_loader, db_path):
     api_cache = get_cache_instance()
     trade_results_cache = get_trade_results_cache()
     
+    # Cache-Statistiken in der Sidebar anzeigen
+    with st.sidebar:
+        st.markdown("**📊 Cache-Status**")
+        
+        # API-Cache Statistiken
+        try:
+            api_cache_stats = api_cache.get_cache_stats()
+            st.markdown("**🗄️ API-Cache**")
+            col1, col2 = st.columns(2)
+            with col1:
+                st.metric("Einträge", f"{api_cache_stats['total_entries']}")
+            with col2:
+                st.metric("Größe", f"{api_cache_stats['total_size_mb']:.1f} MB")
+            
+            col1, col2 = st.columns(2)
+            with col1:
+                st.metric("Letzte 7 Tage", f"{api_cache_stats['recent_entries']}")
+            with col2:
+                if api_cache_stats['top_entries']:
+                    top_entry = api_cache_stats['top_entries'][0]
+                    st.metric("Top Entry", f"{top_entry['size_kb']:.1f} KB")
+                else:
+                    st.metric("Top Entry", "N/A")
+        except Exception:
+            st.info("🗄️ API-Cache: Nicht verfügbar")
+        
+        st.markdown("---")
+        
+        # Trade-Cache Statistiken
+        try:
+            trade_cache_stats = trade_results_cache.get_cache_stats()
+            st.markdown("**⚡ Trade-Cache**")
+            col1, col2 = st.columns(2)
+            with col1:
+                st.metric("Einträge", f"{trade_cache_stats['total_entries']}")
+            with col2:
+                st.metric("Größe", f"{trade_cache_stats['total_size_kb']:.1f} KB")
+            
+            col1, col2 = st.columns(2)
+            with col1:
+                st.metric("Letzte 30 Tage", f"{trade_cache_stats['recent_entries']}")
+            with col2:
+                if trade_cache_stats['top_entries']:
+                    top_entry = trade_cache_stats['top_entries'][0]
+                    st.metric("Top Entry", f"{top_entry['size_kb']:.1f} KB")
+                else:
+                    st.metric("Top Entry", "N/A")
+        except Exception:
+            st.info("⚡ Trade-Cache: Nicht verfügbar")
+        
+        st.markdown("---")
+        
+        # Cache-Verwaltung
+        st.markdown("**🛠️ Cache-Verwaltung**")
+        
+        # API-Cache Verwaltung
+        if st.button("🧹 API-Cache bereinigen (30+ Tage)", 
+                    help="Löscht API-Cache-Einträge älter als 30 Tage",
+                    use_container_width=True):
+            deleted_count = api_cache.clear_old_cache(30)
+            st.success(f"✅ {deleted_count} API-Cache-Einträge gelöscht")
+            st.rerun()
+        
+        if st.button("🗑️ API-Cache löschen", 
+                    help="Löscht alle API-Cache-Einträge",
+                    use_container_width=True):
+            deleted_count = api_cache.clear_all_cache()
+            st.success(f"✅ {deleted_count} API-Cache-Einträge gelöscht")
+            st.rerun()
+        
+        # Trade-Cache Verwaltung
+        if st.button("🧹 Trade-Cache bereinigen (60+ Tage)", 
+                    help="Löscht Trade-Cache-Einträge älter als 60 Tage",
+                    use_container_width=True):
+            deleted_count = trade_results_cache.clear_old_cache(60)
+            st.success(f"✅ {deleted_count} Trade-Cache-Einträge gelöscht")
+            st.rerun()
+        
+        if st.button("🗑️ Trade-Cache löschen", 
+                    help="Löscht alle Trade-Cache-Einträge",
+                    use_container_width=True):
+            deleted_count = trade_results_cache.clear_all_cache()
+            st.success(f"✅ {deleted_count} Trade-Cache-Einträge gelöscht")
+            st.rerun()
+        
+        st.markdown("---")
+    
     if not db_path:
         st.warning("⚠️ Bitte laden Sie zuerst eine Datenbank hoch oder geben Sie einen Pfad ein.")
         return
@@ -664,80 +751,6 @@ def show_tat_navigator_page(data_loader, db_path):
             
             progress_bar.empty()
             st.success(f"✅ Handelsende-Preise geladen")
-            
-            # Cache-Statistiken für beide Caches anzeigen
-            st.markdown("---")
-            st.subheader("📊 Cache-Statistiken")
-            
-            # API-Cache Statistiken
-            st.markdown("**🗄️ API-Cache (API-Rohdaten)**")
-            try:
-                api_cache_stats = api_cache.get_cache_stats()
-                
-                col1, col2, col3, col4 = st.columns(4)
-                with col1:
-                    st.metric("🗄️ API-Einträge", api_cache_stats['total_entries'])
-                with col2:
-                    st.metric("🆕 Letzte 7 Tage", api_cache_stats['recent_entries'])
-                with col3:
-                    st.metric("💾 API-Cache-Größe", f"{api_cache_stats['total_size_mb']} MB")
-                with col4:
-                    if api_cache_stats['top_entries']:
-                        top_entry = api_cache_stats['top_entries'][0]
-                        st.metric("🔥 Meist genutzt", f"{top_entry[4]}x")
-                    else:
-                        st.metric("🔥 Meist genutzt", "0x")
-            except Exception as e:
-                st.warning(f"⚠️ API-Cache-Statistiken konnten nicht geladen werden: {e}")
-            
-            # Trade-Results-Cache Statistiken
-            st.markdown("**⚡ Trade-Results-Cache (Berechnete Werte)**")
-            try:
-                trade_cache_stats = trade_results_cache.get_cache_stats()
-                
-                col1, col2, col3, col4 = st.columns(4)
-                with col1:
-                    st.metric("⚡ Trade-Einträge", trade_cache_stats['total_entries'])
-                with col2:
-                    st.metric("🆕 Letzte 30 Tage", trade_cache_stats['recent_entries'])
-                with col3:
-                    st.metric("💾 Trade-Cache-Größe", f"{trade_cache_stats['total_size_kb']} KB")
-                with col4:
-                    if trade_cache_stats['top_entries']:
-                        top_entry = trade_cache_stats['top_entries']
-                        st.metric("🔥 Meist genutzt", f"{top_entry[0][3]}x")
-                    else:
-                        st.metric("🔥 Meist genutzt", "0x")
-            except Exception as e:
-                st.warning(f"⚠️ Trade-Cache-Statistiken konnten nicht geladen werden: {e}")
-            
-            # Cache-Verwaltung
-            st.markdown("**🛠️ Cache-Verwaltung**")
-            col1, col2, col3, col4 = st.columns(4)
-            
-            with col1:
-                if st.button("🧹 API-Cache bereinigen (30+ Tage)", help="Löscht API-Cache-Einträge älter als 30 Tage"):
-                    deleted_count = api_cache.clear_old_cache(30)
-                    st.success(f"✅ {deleted_count} API-Cache-Einträge gelöscht")
-                    st.rerun()
-            
-            with col2:
-                if st.button("🗑️ API-Cache löschen", help="Löscht alle API-Cache-Einträge"):
-                    deleted_count = api_cache.clear_all_cache()
-                    st.success(f"✅ {deleted_count} API-Cache-Einträge gelöscht")
-                    st.rerun()
-            
-            with col3:
-                if st.button("🧹 Trade-Cache bereinigen (60+ Tage)", help="Löscht Trade-Cache-Einträge älter als 60 Tage"):
-                    deleted_count = trade_results_cache.clear_old_cache(60)
-                    st.success(f"✅ {deleted_count} Trade-Cache-Einträge gelöscht")
-                    st.rerun()
-            
-            with col4:
-                if st.button("🗑️ Trade-Cache löschen", help="Löscht alle Trade-Cache-Einträge"):
-                    deleted_count = trade_results_cache.clear_all_cache()
-                    st.success(f"✅ {deleted_count} Trade-Cache-Einträge gelöscht")
-                    st.rerun()
             
             # Handelsende-Preis-Werte sind gesetzt
             
