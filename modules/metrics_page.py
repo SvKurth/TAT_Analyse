@@ -669,6 +669,9 @@ def show_metrics_page(data_loader, db_path):
                         if len(daily_pnl) == 0:
                             st.warning("⚠️ Keine gültigen Daten für die Chart-Erstellung verfügbar")
                             return
+                        
+                        # Tägliche Gruppierung für PCR-Chart verfügbar machen
+                        daily_grouped = chart_data.groupby(chart_data[date_cols[0]].dt.date)
                             
                     except Exception as e:
                         st.error(f"❌ Fehler bei der Datenverarbeitung: {e}")
@@ -676,6 +679,7 @@ def show_metrics_page(data_loader, db_path):
                     
                     # Chart erstellen
                     # Einzelnes Chart mit zwei Y-Achsen
+                    import plotly.graph_objects as go
                     fig = go.Figure()
                     
                     # Tägliche P&L als Balken (linke Y-Achse) - grün für Gewinne, rot für Verluste
@@ -754,6 +758,7 @@ def show_metrics_page(data_loader, db_path):
                             weekly_chart_data = weekly_chart_data.sort_values('Week_Label')
                             
                             # Erstelle Bar-Chart
+                            import plotly.graph_objects as go
                             fig_weekly = go.Figure()
                             
                             # Farben basierend auf Profit/Loss
@@ -921,6 +926,244 @@ def show_metrics_page(data_loader, db_path):
                             st.metric("Ø Täglicher P&L", f"${avg_daily_pnl:,.2f}")
                         else:
                             st.metric("Ø Täglicher P&L", "$0.00")
+                    
+                    # Premium Capture Rate (PCR) Chart pro Tag
+                    st.markdown("---")
+                    st.subheader("📈 Premium Capture Rate (PCR) pro Tag")
+                    
+                    try:
+
+                        
+                        # PCR-Berechnung: (Verkaufte Prämie + Gekaufte Prämie + Commission + Rückkaufpreis) / Verkaufte Prämie
+                        pcr_data = []
+                        
+                        for date, group in daily_grouped:
+                            # Tägliche Summen direkt berechnen (keine einzelnen PCR-Werte)
+                            daily_short_premium = 0
+                            daily_long_premium = 0
+                            daily_commission = 0
+                            daily_close_premium = 0
+                            valid_trades_count = 0
+                            
+                            for _, trade in group.iterrows():
+                                try:
+                                    # Verkaufte Prämie (ShortPrice)
+                                    short_premium = 0
+                                    if price_short_cols and pd.notna(trade.get(price_short_cols[0], 0)):
+                                        short_price = float(trade[price_short_cols[0]])
+                                        if quantity_cols and pd.notna(trade.get(quantity_cols[0], 0)):
+                                            qty = float(trade[quantity_cols[0]])
+                                            short_premium = abs(short_price * qty * 100)
+                                            daily_short_premium += short_premium
+                                    
+                                    # Gekaufte Prämie (LongPrice)
+                                    long_premium = 0
+                                    if price_long_cols and pd.notna(trade.get(price_long_cols[0], 0)):
+                                        long_price = float(trade[price_long_cols[0]])
+                                        if quantity_cols and pd.notna(trade.get(quantity_cols[0], 0)):
+                                            qty = float(trade[quantity_cols[0]])
+                                            long_premium = abs(long_price * qty * 100)
+                                            daily_long_premium += long_premium
+                                    
+                                    # Commission (Gesamt): Commission + CommissionClose
+                                    commission = 0
+                                    commission_breakdown = []
+                                    
+                                    if commission_cols and pd.notna(trade.get(commission_cols[0], 0)):
+                                        commission_val = abs(float(trade[commission_cols[0]]))
+                                        commission += commission_val
+                                        commission_breakdown.append(f"Commission: {commission_val:.2f}")
+                                    
+                                    if commission_close_cols and pd.notna(trade.get(commission_close_cols[0], 0)):
+                                        commission_close_val = abs(float(trade[commission_close_cols[0]]))
+                                        commission += commission_close_val
+                                        commission_breakdown.append(f"CommissionClose: {commission_close_val:.2f}")
+                                    
+                                    daily_commission += commission
+                                    commission_detail = " + ".join(commission_breakdown) if commission_breakdown else "Keine Commission"
+                                    
+                                    # Rückkaufpreis (ClosePrice)
+                                    close_premium = 0
+                                    price_close_cols = [col for col in trade_data.columns if 'priceclose' in col.lower() or 'price_close' in col.lower() or 'closepreis' in col.lower()]
+                                    
+                                    if price_close_cols and pd.notna(trade.get(price_close_cols[0], 0)):
+                                        close_price = float(trade[price_close_cols[0]])
+                                        if quantity_cols and pd.notna(trade.get(quantity_cols[0], 0)):
+                                            qty = float(trade[quantity_cols[0]])
+                                            close_premium = abs(close_price * qty * 100)
+                                            daily_close_premium += close_premium
+                                    
+
+                                    
+                                    if short_premium > 0:  # Gültiger Trade
+                                        valid_trades_count += 1
+                                
+                                except (ValueError, TypeError):
+                                    continue  # Skip trades mit fehlenden/ungültigen Daten
+                            
+                            # Tägliche PCR berechnen: (Prämieneinnahme - Commission - Rückkaufpreis) / Prämieneinnahme × 100%
+                            if daily_short_premium > 0:
+                                # Prämieneinnahme = Short-Prämie - Long-Prämie
+                                daily_premium_income = daily_short_premium - daily_long_premium
+                                
+                                # Netto-Prämie = Prämieneinnahme - Commission - Rückkaufpreis
+                                daily_net_premium = daily_premium_income - daily_commission - daily_close_premium
+                                
+                                # PCR = Netto-Prämie / Prämieneinnahme × 100
+                                daily_pcr = (daily_net_premium / daily_premium_income) * 100 if daily_premium_income > 0 else 0
+                                
+
+                                
+                                pcr_data.append({
+                                    'Datum': date,
+                                    'PCR_%': daily_pcr,
+                                    'Trades_Count': valid_trades_count,
+                                    'Short_Premium': daily_short_premium,
+                                    'Long_Premium': daily_long_premium,
+                                    'Commission': daily_commission,
+                                    'Close_Premium': daily_close_premium,
+                                    'Net_Premium': daily_net_premium
+                                })
+                        
+                        if pcr_data:
+                            # DataFrame für PCR erstellen
+                            pcr_df = pd.DataFrame(pcr_data)
+                            
+                            # PCR Chart mit Plotly erstellen
+                            import plotly.graph_objects as go
+                            
+                            fig = go.Figure()
+                            
+                            # PCR-Linie
+                            fig.add_trace(go.Scatter(
+                                x=pcr_df['Datum'],
+                                y=pcr_df['PCR_%'],
+                                mode='lines+markers',
+                                name='Premium Capture Rate',
+                                line=dict(color='#2E86AB', width=3),
+                                marker=dict(size=8, color='#2E86AB', symbol='circle'),
+                                customdata=pcr_df[['Short_Premium', 'Long_Premium', 'Commission', 'Close_Premium', 'Net_Premium', 'Trades_Count']],
+                                hovertemplate='<b>📅 %{x}</b><br>' +
+                                            '<b>📊 PCR: %{y:.2f}%</b><br>' +
+                                            '─────────────────<br>' +
+                                            '💰 Verkaufte Prämie: $%{customdata[0]:.2f}<br>' +
+                                            '💸 Gekaufte Prämie: $%{customdata[1]:.2f}<br>' +
+                                            '💳 Commission: $%{customdata[2]:.2f}<br>' +
+                                            '🔄 Rückkaufpreis: $%{customdata[3]:.2f}<br>' +
+                                            '─────────────────<br>' +
+                                            '💵 Netto-Prämie: $%{customdata[4]:.2f}<br>' +
+                                            '📈 Anzahl Trades: %{customdata[5]}<br>' +
+                                            '<extra></extra>'
+                            ))
+                            
+                            # Gewichteter Durchschnitt basierend auf Trades pro Tag
+                            total_net_premium = pcr_df['Net_Premium'].sum()
+                            total_premium_income = (pcr_df['Short_Premium'] - pcr_df['Long_Premium']).sum()
+                            weighted_avg_pcr = (total_net_premium / total_premium_income * 100) if total_premium_income > 0 else 0
+                            
+
+                            
+                            # Durchschnittslinie (gewichtet)
+                            avg_pcr_line = weighted_avg_pcr
+                            fig.add_hline(y=avg_pcr_line, line_dash="solid", line_color="red", opacity=0.8, line_width=2,
+                                        annotation_text=f"Ø {avg_pcr_line:.1f}% (gewichtet)", annotation_position="top right")
+                            
+                            # 0% Baseline (Break-even)
+                            fig.add_hline(y=0, line_dash="dash", line_color="gray", opacity=0.7,
+                                        annotation_text="0% Break-even", annotation_position="bottom right")
+                            
+                            # 50% und 100% Referenzlinien
+                            fig.add_hline(y=50, line_dash="dot", line_color="orange", opacity=0.5, 
+                                        annotation_text="50% PCR", annotation_position="bottom right")
+                            fig.add_hline(y=100, line_dash="dot", line_color="green", opacity=0.5,
+                                        annotation_text="100% PCR", annotation_position="bottom right")
+                            
+                            # Layout konfigurieren
+                            fig.update_layout(
+                                title={
+                                    'text': '📈 Premium Capture Rate (PCR) pro Tag',
+                                    'x': 0.5,
+                                    'xanchor': 'center',
+                                    'font': {'size': 20, 'family': 'Arial Black'}
+                                },
+                                xaxis=dict(
+                                    title='📅 Datum',
+                                    showgrid=True,
+                                    gridwidth=1,
+                                    gridcolor='rgba(128, 128, 128, 0.2)',
+                                    tickangle=45
+                                ),
+                                yaxis=dict(
+                                    title='📊 Premium Capture Rate (%)',
+                                    showgrid=True,
+                                    gridwidth=1,
+                                    gridcolor='rgba(128, 128, 128, 0.2)',
+                                    tickformat='.1f'
+                                ),
+                                plot_bgcolor='white',
+                                paper_bgcolor='white',
+                                height=500,
+                                hovermode='x unified',
+                                showlegend=False,
+                                margin=dict(l=80, r=80, t=80, b=80)
+                            )
+                            
+                            st.plotly_chart(fig, use_container_width=True)
+                            
+                            # PCR-Statistiken
+                            st.markdown("### 📊 PCR-Statistiken")
+                            col1, col2, col3, col4 = st.columns(4)
+                            
+                            with col1:
+                                avg_pcr = pcr_df['PCR_%'].mean()
+                                st.metric("Ø PCR", f"{avg_pcr:.2f}%", 
+                                        delta=f"{avg_pcr-50:.2f}pp" if avg_pcr != 50 else None)
+                            
+                            with col2:
+                                max_pcr = pcr_df['PCR_%'].max()
+                                st.metric("📈 Beste PCR (höchste)", f"{max_pcr:.2f}%")
+                            
+                            with col3:
+                                min_pcr = pcr_df['PCR_%'].min()
+                                st.metric("📉 Schlechteste PCR (niedrigste)", f"{min_pcr:.2f}%")
+                            
+                            with col4:
+                                positive_pcr_days = len(pcr_df[pcr_df['PCR_%'] > 0])  # PCR > 0% als "gut"
+                                total_days = len(pcr_df)
+                                success_rate = (positive_pcr_days / total_days * 100) if total_days > 0 else 0
+                                st.metric("✅ Profitable Tage (PCR > 0%)", f"{success_rate:.1f}%", 
+                                        delta=f"{positive_pcr_days}/{total_days}")
+                            
+                            # Info-Box für PCR-Erklärung
+                            with st.expander("ℹ️ Premium Capture Rate (PCR) Erklärung", expanded=False):
+                                st.markdown("""
+                                **📊 Premium Capture Rate (PCR) Formel:**
+                                ```
+                                PCR = (Prämieneinnahme - Commission - Rückkaufpreis) / Prämieneinnahme × 100%
+                                ```
+                                
+                                **💡 Berechnung der Komponenten:**
+                                - **Prämieneinnahme**: ShortPrice × Quantity × 100 - LongPrice × Quantity × 100
+                                - **Kosten (werden abgezogen):**
+                                  - Commission: Commission + CommissionClose
+                                  - Rückkaufpreis: ClosePrice × Quantity × 100
+                                
+                                **📈 Interpretation:**
+                                - **100% PCR**: Komplette Prämie eingenommen (Option wertlos verfallen)
+                                - **50% PCR**: Hälfte der Prämie eingenommen
+                                - **0% PCR**: Break-even (alle Kosten gedeckt, aber kein Gewinn)
+                                - **Negative PCR**: Verlust (mehr ausgegeben als eingenommen)
+                                
+                                **🎯 Ziel:** Möglichst hohe PCR (mehr Prämie im Verhältnis zu den Kosten eingenommen)
+                                """)
+                        
+                        else:
+                            st.warning("⚠️ Keine gültigen PCR-Daten für Chart verfügbar")
+                            st.info("💡 Für PCR-Berechnung werden Short Price, Long Price, Commission und Close Price benötigt")
+                    
+                    except Exception as pcr_error:
+                        st.error(f"❌ Fehler beim Erstellen des PCR-Charts: {pcr_error}")
+                        st.info("💡 Stellen Sie sicher, dass die benötigten Preisspalten verfügbar sind")
                     
                 else:
                     st.warning("⚠️ Datumsspalte konnte nicht als Datum interpretiert werden")
