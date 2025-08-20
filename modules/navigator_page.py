@@ -263,6 +263,50 @@ def show_tat_navigator_page(data_loader, db_path):
                     else:
                         selected_strategies = []
                 
+                # Zusätzliche Filter
+                col_filter3, col_filter4, col_filter5 = st.columns(3)
+                
+                with col_filter3:
+                    # Optionspreis Handelsende Filter (Profitable Short-Optionen)
+                    filter_profitable_options = st.checkbox(
+                        "✅ Nur profitable Short-Optionen (Opening > Handelsende)",
+                        value=st.session_state.get('filter_profitable_options', False),
+                        help="Zeigt nur Trades, bei denen die verkaufte Option wertlos geworden ist (Eröffnungspreis > Handelsende-Preis = Gewinn)"
+                    )
+                    if filter_profitable_options != st.session_state.get('filter_profitable_options', False):
+                        st.session_state.filter_profitable_options = filter_profitable_options
+                
+                with col_filter4:
+                    # Optionspreis Handelsende Filter (Nicht profitable Short-Optionen)
+                    filter_unprofitable_options = st.checkbox(
+                        "❌ Nur nicht profitable Short-Optionen (Handelsende > Opening)",
+                        value=st.session_state.get('filter_unprofitable_options', False),
+                        help="Zeigt nur Trades, bei denen die verkaufte Option teurer geworden ist (Handelsende-Preis > Eröffnungspreis = Verlust)"
+                    )
+                    if filter_unprofitable_options != st.session_state.get('filter_unprofitable_options', False):
+                        st.session_state.filter_unprofitable_options = filter_unprofitable_options
+                
+                with col_filter5:
+                    # Status Filter - Session State zurücksetzen falls alte Werte vorhanden
+                    if 'status_filter' in st.session_state:
+                        old_values = st.session_state.status_filter
+                        if old_values and isinstance(old_values[0], tuple) and isinstance(old_values[0][0], str):
+                            # Alte String-Werte gefunden, zurücksetzen
+                            st.session_state.status_filter = []
+                    
+                    status_filter = st.multiselect(
+                        "📊 Status Filter:",
+                        options=[
+                            (2, "2 = Stopped"),
+                            (4, "4 = Expired")
+                        ],
+                        default=st.session_state.get('status_filter', []),
+                        format_func=lambda x: x[1],
+                        help="Wählen Sie die gewünschten Status-Werte"
+                    )
+                    if status_filter != st.session_state.get('status_filter', []):
+                        st.session_state.status_filter = status_filter
+                
                 # Filter-Buttons
                 col_apply, col_reset = st.columns([3, 1])
                 with col_apply:
@@ -274,6 +318,11 @@ def show_tat_navigator_page(data_loader, db_path):
                     if st.button("🔄 Reset", use_container_width=True, key="reset_filters_nav"):
                         st.session_state.start_date = None
                         st.session_state.end_date = None
+                        st.session_state.filter_profitable_options = False
+                        st.session_state.filter_unprofitable_options = False
+                        st.session_state.pending_profitable_filter = False
+                        st.session_state.pending_unprofitable_filter = False
+                        st.session_state.status_filter = []
                         st.session_state.filters_applied_nav = False
                         st.rerun()
                 
@@ -319,6 +368,43 @@ def show_tat_navigator_page(data_loader, db_path):
                                 filter_description += f" | Strategy: {len(selected_strategies)}"
                             else:
                                 filter_description = f"Strategy: {len(selected_strategies)}"
+                        
+                        # Status Filter
+                        if st.session_state.get('status_filter', []):
+                            selected_status_values = [item[0] for item in st.session_state.status_filter]
+                            # Suche nach Status-Spalte (mit oder ohne Emoji)
+                            status_col = None
+                            for col in trade_data_filtered.columns:
+                                if 'Status' in col:
+                                    status_col = col
+                                    break
+                            
+                            if status_col:
+                                # Konvertiere Status-Spalte zu numerischen Werten für Vergleich
+                                trade_data_filtered = trade_data_filtered[
+                                    pd.to_numeric(trade_data_filtered[status_col], errors='coerce').isin(selected_status_values)
+                                ]
+                                if filter_description:
+                                    filter_description += f" | Status: {len(selected_status_values)}"
+                                else:
+                                    filter_description = f"Status: {len(selected_status_values)}"
+                        
+                        # Optionspreis Handelsende Filter (Profitable/Nicht profitable)
+                        if st.session_state.get('filter_profitable_options', False):
+                            # Markiere für späteren Filter (nach dem Laden der Handelsende-Preise)
+                            st.session_state.pending_profitable_filter = True
+                            if filter_description:
+                                filter_description += " | Profitable Short-Optionen (wird nach Handelsende-Preisen angewendet)"
+                            else:
+                                filter_description = "Profitable Short-Optionen (wird nach Handelsende-Preisen angewendet)"
+                        
+                        if st.session_state.get('filter_unprofitable_options', False):
+                            # Markiere für späteren Filter (nach dem Laden der Handelsende-Preise)
+                            st.session_state.pending_unprofitable_filter = True
+                            if filter_description:
+                                filter_description += " | Nicht profitable Short-Optionen (wird nach Handelsende-Preisen angewendet)"
+                            else:
+                                filter_description = "Nicht profitable Short-Optionen (wird nach Handelsende-Preisen angewendet)"
                         
                         # Filter-Ergebnis
                         if len(trade_data_filtered) > 0:
@@ -388,98 +474,8 @@ def show_tat_navigator_page(data_loader, db_path):
                     lambda x: x.strftime('%H:%M:%S') if pd.notna(x) and hasattr(x, 'strftime') else str(x)[-8:] if pd.notna(x) and len(str(x)) >= 8 else str(x)
                 )
             
-            # Metriken in schönen Kacheln
-            st.markdown('<div class="metric-section"><h3>📊 Trading Übersicht</h3></div>', unsafe_allow_html=True)
-            
-            col1, col2, col3, col4 = st.columns(4)
-            
-            with col1:
-                total_trades = len(trade_data)
-                st.markdown(f"""
-                <div class="metric-tile">
-                    <div class="metric-header">
-                        <div class="metric-icon">📈</div>
-                        <div class="metric-title">TRADES</div>
-                    </div>
-                    <div class="metric-value neutral">{total_trades}</div>
-                    <div class="metric-description">Anzahl aller Trades</div>
-                </div>
-                """, unsafe_allow_html=True)
-            
-            with col2:
-                if profit_cols:
-                    total_pnl = trade_data[profit_cols[0]].sum()
-                    st.markdown(f"""
-                    <div class="metric-tile">
-                        <div class="metric-header">
-                            <div class="metric-icon">💰</div>
-                            <div class="metric-title">P&L GESAMT</div>
-                        </div>
-                        <div class="metric-value {'negative' if total_pnl < 0 else 'positive'}">${total_pnl:,.2f}</div>
-                        <div class="metric-description">Gesamter Profit/Loss</div>
-                    </div>
-                    """, unsafe_allow_html=True)
-                else:
-                    st.markdown(f"""
-                    <div class="metric-tile">
-                        <div class="metric-header">
-                            <div class="metric-icon">💰</div>
-                            <div class="metric-title">P&L GESAMT</div>
-                        </div>
-                        <div class="metric-value neutral">N/A</div>
-                        <div class="metric-description">Keine P&L-Daten verfügbar</div>
-                    </div>
-                    """, unsafe_allow_html=True)
-            
-            with col3:
-                if 'Status' in trade_data.columns:
-                    stopped_trades = trade_data[trade_data['Status'] == 'Stopped']
-                    total_stopped = len(stopped_trades)
-                    st.markdown(f"""
-                    <div class="metric-tile">
-                        <div class="metric-header">
-                            <div class="metric-icon">🛑</div>
-                            <div class="metric-title">GESTOPPTE TRADES</div>
-                        </div>
-                        <div class="metric-value neutral">{total_stopped}</div>
-                        <div class="metric-description">Anzahl gestoppter Trades</div>
-                    </div>
-                    """, unsafe_allow_html=True)
-                else:
-                    st.markdown(f"""
-                    <div class="metric-tile">
-                        <div class="metric-header">
-                            <div class="metric-icon">🛑</div>
-                            <div class="metric-title">GESTOPPTE TRADES</div>
-                        </div>
-                        <div class="metric-value neutral">N/A</div>
-                        <div class="metric-description">Status-Spalte nicht verfügbar</div>
-                    </div>
-                    """, unsafe_allow_html=True)
-            
-            with col4:
-                if 'Status' in trade_data.columns:
-                    st.markdown(f"""
-                    <div class="metric-tile">
-                        <div class="metric-header">
-                            <div class="metric-icon">📊</div>
-                            <div class="metric-title">STATUS</div>
-                        </div>
-                        <div class="metric-value neutral">Verfügbar</div>
-                        <div class="metric-description">Status-Informationen aktiv</div>
-                    </div>
-                    """, unsafe_allow_html=True)
-                else:
-                    st.markdown(f"""
-                    <div class="metric-tile">
-                        <div class="metric-header">
-                            <div class="metric-icon">📊</div>
-                            <div class="metric-title">STATUS</div>
-                        </div>
-                        <div class="metric-value neutral">N/A</div>
-                        <div class="metric-description">Status-Spalte nicht verfügbar</div>
-                    </div>
-                    """, unsafe_allow_html=True)
+            # Metriken werden nach dem Anwenden des Optionspreis-Filters berechnet
+            # (siehe weiter unten nach dem Laden der Handelsende-Preise)
             
             # Überschrift für Tabelle
             st.subheader(f"📋 Alle gefilterten Trades")
@@ -534,7 +530,7 @@ def show_tat_navigator_page(data_loader, db_path):
             
             # Wichtige Spalten für Anzeige
             display_columns = []
-            for col in ['📅 Datum', '🕐 Eröffnung', '💰 Preis Eröffnung', '🎯 Stop/Target', '🕐 Schließung', '💰 Preis Schließung', '📊 Trade Type', '📦 Quantity', '💰 P&L']:
+            for col in ['📅 Datum', '🕐 Eröffnung', '💰 Preis Eröffnung', '🎯 Stop/Target', '🕐 Schließung', '💰 Preis Schließung', '📊 Trade Type', '📦 Quantity', '💰 P&L', '📈 Status']:
                 if col in display_trades.columns:
                     display_columns.append(col)
             
@@ -606,7 +602,14 @@ def show_tat_navigator_page(data_loader, db_path):
             st.markdown("---")
             st.subheader("📈 Optionspreis Handelsende")
             
-
+            # Optionspreis-Filter anwenden (falls aktiviert)
+            if st.session_state.get('pending_profitable_filter', False) and st.session_state.get('filter_profitable_options', False):
+                st.info("🎯 Filtere nach profitablen Short-Optionen (Opening > Handelsende)...")
+                st.session_state.pending_profitable_filter = False  # Zurücksetzen
+            elif st.session_state.get('pending_unprofitable_filter', False) and st.session_state.get('filter_unprofitable_options', False):
+                st.info("🎯 Filtere nach nicht profitablen Short-Optionen (Handelsende > Opening)...")
+                st.session_state.pending_unprofitable_filter = False  # Zurücksetzen
+            
             st.info(f"🔄 Lade Handelsende-Preise für alle {len(display_trades)} Trades...")
             
             # Debug: Nur wichtige Informationen (Browser nicht überlasten)
@@ -883,7 +886,211 @@ def show_tat_navigator_page(data_loader, db_path):
             progress_bar.empty()
             st.success(f"✅ Handelsende-Preise geladen")
             
+            # Optionspreis-Filter anwenden (falls aktiviert)
+            if st.session_state.get('filter_profitable_options', False) or st.session_state.get('filter_unprofitable_options', False):
+                filter_type = "profitable" if st.session_state.get('filter_profitable_options', False) else "unprofitable"
+                
+                if filter_type == "profitable":
+                    st.info("🎯 Wende Filter für profitable Short-Optionen an...")
+                else:
+                    st.info("🎯 Wende Filter für nicht profitable Short-Optionen an...")
+                
+                before_filter = len(display_trades)
+                
+                # Nur Trades mit gültigen Daten filtern
+                valid_trades = display_trades[
+                    (display_trades['📈 Optionspreis Handelsende'] != 'N/A') & 
+                    (display_trades['📈 Optionspreis Handelsende'] != 'Keine Daten') &
+                    (display_trades['📈 Optionspreis Handelsende'] != 'Keine API-Daten') &
+                    (display_trades['📈 Optionspreis Handelsende'] != 'API Probleme') &
+                    (display_trades['📈 Optionspreis Handelsende'] != 'Keine Option') &
+                    (display_trades['📈 Optionspreis Handelsende'] != 'Fehler')
+                ].copy()
+                
+                if len(valid_trades) > 0:
+                    # Konvertiere Handelsende-Preise zu numerischen Werten (als Absolutwerte für Vergleich)
+                    valid_trades['handelsende_numeric'] = pd.to_numeric(
+                        valid_trades['📈 Optionspreis Handelsende'], 
+                        errors='coerce'
+                    ).abs()  # Absolutwerte verwenden, da Eröffnungspreis auch positiv angezeigt wird
+                    
+                    # Konvertiere Opening-Preise zu numerischen Werten
+                    if '💰 Preis Eröffnung' in valid_trades.columns:
+                        valid_trades['opening_numeric'] = pd.to_numeric(
+                            valid_trades['💰 Preis Eröffnung'], 
+                            errors='coerce'
+                        )
+                        
+                        if filter_type == "profitable":
+                            # Profitable: Opening > Handelsende (Gewinn bei Short-Optionen)
+                            filtered_trades = valid_trades[
+                                (valid_trades['opening_numeric'] > valid_trades['handelsende_numeric']) &
+                                (valid_trades['opening_numeric'] > 0)  # Nur gültige Opening-Preise
+                            ]
+                            success_msg = "profitable Short-Optionen"
+                            warning_msg = "⚠️ Keine profitablen Short-Optionen gefunden"
+                        else:
+                            # Nicht profitable: Handelsende > Opening (Verlust bei Short-Optionen)
+                            filtered_trades = valid_trades[
+                                (valid_trades['handelsende_numeric'] > valid_trades['opening_numeric']) &
+                                (valid_trades['opening_numeric'] > 0)  # Nur gültige Opening-Preise
+                            ]
+                            success_msg = "nicht profitable Short-Optionen"
+                            warning_msg = "⚠️ Keine nicht profitablen Short-Optionen gefunden"
+                        
+                        if len(filtered_trades) > 0:
+                            # Entferne temporäre Spalten
+                            filtered_trades = filtered_trades.drop(['handelsende_numeric', 'opening_numeric'], axis=1)
+                            display_trades = filtered_trades
+                            
+                            after_filter = len(display_trades)
+                            st.success(f"✅ Filter angewendet: {after_filter} {success_msg} gefunden (von {before_filter} Trades)")
+                        else:
+                            st.warning(warning_msg)
+                            if filter_type == "profitable":
+                                st.session_state.filter_profitable_options = False
+                            else:
+                                st.session_state.filter_unprofitable_options = False
+                    else:
+                        st.warning("⚠️ Opening-Preis-Spalte nicht verfügbar für Filter")
+                        if filter_type == "profitable":
+                            st.session_state.filter_profitable_options = False
+                        else:
+                            st.session_state.filter_unprofitable_options = False
+                else:
+                    st.warning("⚠️ Keine gültigen Handelsende-Preis-Daten für Filter verfügbar")
+                    if filter_type == "profitable":
+                        st.session_state.filter_profitable_options = False
+                    else:
+                        st.session_state.filter_unprofitable_options = False
+            
             # Handelsende-Preis-Werte sind gesetzt
+            
+            # Jetzt die Metriken berechnen (nach dem Anwenden des Optionspreis-Filters)
+            st.markdown('<div class="metric-section"><h3>📊 Trading Übersicht</h3></div>', unsafe_allow_html=True)
+            
+            col1, col2, col3, col4 = st.columns(4)
+            
+            with col1:
+                total_trades = len(display_trades)  # Verwende display_trades (gefilterte Daten)
+                st.markdown(f"""
+                <div class="metric-tile">
+                    <div class="metric-header">
+                        <div class="metric-icon">📈</div>
+                        <div class="metric-title">TRADES</div>
+                    </div>
+                    <div class="metric-value neutral">{total_trades}</div>
+                    <div class="metric-description">Anzahl aller Trades</div>
+                </div>
+                """, unsafe_allow_html=True)
+            
+            with col2:
+                # Finde P&L-Spalte in display_trades (kann umbenannt worden sein)
+                pnl_column = None
+                if '💰 P&L' in display_trades.columns:
+                    pnl_column = '💰 P&L'
+                elif profit_cols and profit_cols[0] in display_trades.columns:
+                    pnl_column = profit_cols[0]
+                
+                if pnl_column:
+                    try:
+                        # Verwende display_trades für gefilterte P&L-Berechnung
+                        total_pnl = display_trades[pnl_column].sum()
+                        st.markdown(f"""
+                        <div class="metric-tile">
+                            <div class="metric-header">
+                                <div class="metric-icon">💰</div>
+                                <div class="metric-title">P&L GESAMT</div>
+                            </div>
+                            <div class="metric-value {'negative' if total_pnl < 0 else 'positive'}">${total_pnl:,.2f}</div>
+                            <div class="metric-description">Gesamter Profit/Loss</div>
+                        </div>
+                        """, unsafe_allow_html=True)
+                    except Exception as e:
+                        st.markdown(f"""
+                        <div class="metric-tile">
+                            <div class="metric-header">
+                                <div class="metric-icon">💰</div>
+                                <div class="metric-title">P&L GESAMT</div>
+                            </div>
+                            <div class="metric-value neutral">Fehler</div>
+                            <div class="metric-description">P&L-Berechnung fehlgeschlagen</div>
+                        </div>
+                        """, unsafe_allow_html=True)
+                else:
+                    st.markdown(f"""
+                    <div class="metric-tile">
+                        <div class="metric-header">
+                            <div class="metric-icon">💰</div>
+                            <div class="metric-title">P&L GESAMT</div>
+                        </div>
+                        <div class="metric-value neutral">N/A</div>
+                        <div class="metric-description">Keine P&L-Daten verfügbar</div>
+                    </div>
+                    """, unsafe_allow_html=True)
+            
+            with col3:
+                # Suche nach Status-Spalte (mit oder ohne Emoji)
+                status_col = None
+                for col in display_trades.columns:
+                    if 'Status' in col:
+                        status_col = col
+                        break
+                
+                if status_col:
+                    # Filtere nach numerischem Status-Wert 2 (Stopped)
+                    stopped_trades = display_trades[
+                        pd.to_numeric(display_trades[status_col], errors='coerce') == 2
+                    ]
+                    total_stopped = len(stopped_trades)
+                    st.markdown(f"""
+                    <div class="metric-tile">
+                        <div class="metric-header">
+                            <div class="metric-icon">🛑</div>
+                            <div class="metric-title">GESTOPPTE TRADES</div>
+                        </div>
+                        <div class="metric-value neutral">{total_stopped}</div>
+                        <div class="metric-description">Status = 2 (Stopped)</div>
+                    </div>
+                    """, unsafe_allow_html=True)
+                else:
+                    st.markdown(f"""
+                    <div class="metric-tile">
+                        <div class="metric-header">
+                            <div class="metric-icon">🛑</div>
+                            <div class="metric-title">GESTOPPTE TRADES</div>
+                        </div>
+                        <div class="metric-value neutral">N/A</div>
+                        <div class="metric-description">Status-Spalte nicht verfügbar</div>
+                    </div>
+                    """, unsafe_allow_html=True)
+            
+            with col4:
+                if 'Status' in display_trades.columns:
+                    st.markdown(f"""
+                    <div class="metric-tile">
+                        <div class="metric-header">
+                            <div class="metric-icon">📊</div>
+                            <div class="metric-title">STATUS</div>
+                        </div>
+                        <div class="metric-value neutral">Verfügbar</div>
+                        <div class="metric-description">Status-Informationen aktiv</div>
+                    </div>
+                    """, unsafe_allow_html=True)
+                else:
+                    st.markdown(f"""
+                    <div class="metric-tile">
+                        <div class="metric-header">
+                            <div class="metric-icon">📊</div>
+                            <div class="metric-title">STATUS</div>
+                        </div>
+                        <div class="metric-value neutral">N/A</div>
+                        <div class="metric-description">Status-Spalte nicht verfügbar</div>
+                    </div>
+                    """, unsafe_allow_html=True)
+            
+            # API-Link Spalte aus den Anzeige-Spalten entfernen
+            display_columns = [col for col in display_columns if col != '🔗 API-Link']
             
             # Strike-Preis-Spalten hinzufügen
             display_columns.extend(strike_columns)
@@ -896,11 +1103,16 @@ def show_tat_navigator_page(data_loader, db_path):
                     '📅 Datum': 'GESAMT:',
                     '🕐 Eröffnung': '',
                     '💰 Preis Eröffnung': '',
+                    '🎯 Stop/Target': '',
                     '🕐 Schließung': '',
                     '💰 Preis Schließung': '',
                     '📊 Trade Type': '',
                     '📦 Quantity': '',
-                    '💰 P&L': f"{total_pnl:.2f}"
+                    '💰 P&L': f"{total_pnl:.2f}",
+                    '📈 Optionspreis Handelsende': '',
+                    '📊 Peak': '',
+                    '🕐 Peak-Zeit': '',
+                    '📈 Status': ''
                 }
                 
                 # Optionspreis Handelsende zur Summenzeile
