@@ -707,7 +707,7 @@ def show_tat_navigator_page(data_loader, db_path):
             elif st.session_state.get('pending_unprofitable_filter', False) and st.session_state.get('filter_unprofitable_options', False):
                 st.info("🎯 Filtere nach nicht profitablen Short-Optionen (Handelsende > Opening)...")
                 st.session_state.pending_unprofitable_filter = False  # Zurücksetzen
-            
+
             st.info(f"🔄 Lade Handelsende-Preise für alle {len(display_trades)} Trades...")
             
             # Debug: Nur wichtige Informationen (Browser nicht überlasten)
@@ -1238,11 +1238,382 @@ def show_tat_navigator_page(data_loader, db_path):
             
             # Tabelle anzeigen
             try:
+                # Normale Tabelle anzeigen
                 st.dataframe(
                     final_table,
                     use_container_width=True,
                     hide_index=True
                 )
+                
+                # Trade-Auswahl über Selectbox
+                st.markdown("---")
+                st.subheader("📊 Trade für Chart auswählen")
+                
+                # Trade-Optionen für Auswahl erstellen
+                trade_options = []
+                
+                for idx, trade in display_trades.iterrows():
+                    # Verschiedene mögliche Tradetyp-Spaltennamen prüfen
+                    tradetyp = (trade.get('🎯 Tradetyp') or 
+                               trade.get('Tradetyp') or 
+                               trade.get('Type') or 
+                               trade.get('TradeType') or 
+                               trade.get('Strategy') or
+                               'N/A')
+                    
+                    # ShortPut oder ShortCall Strike ermitteln
+                    shortstrike = 'N/A'
+                    if 'ShortPut' in trade and pd.notna(trade['ShortPut']) and trade['ShortPut'] != 0:
+                        shortstrike = f"P{trade['ShortPut']:.0f}"
+                    elif 'ShortCall' in trade and pd.notna(trade['ShortCall']) and trade['ShortCall'] != 0:
+                        shortstrike = f"C{trade['ShortCall']:.0f}"
+                    elif 'ShortPut' in trade.columns and pd.notna(trade['ShortPut']) and trade['ShortPut'] != 0:
+                        shortstrike = f"P{trade['ShortPut']:.0f}"
+                    elif 'ShortCall' in trade.columns and pd.notna(trade['ShortCall']) and trade['ShortCall'] != 0:
+                        shortstrike = f"C{trade['ShortCall']:.0f}"
+                    
+                    # Verschiedene mögliche Datum-Spaltennamen prüfen  
+                    datum = (trade.get('📅 Datum') or 
+                            trade.get('Datum') or 
+                            trade.get('DateOpened') or 
+                            trade.get('Date') or 
+                            'N/A')
+                    
+                    # Eröffnungszeit ermitteln
+                    eroeffnungszeit = (trade.get('⏰ Eröffnungszeit') or 
+                                      trade.get('Eröffnungszeit') or 
+                                      trade.get('TimeOpened') or 
+                                      trade.get('OpenTime') or 
+                                      trade.get('Time') or 
+                                      trade.get('OpeningTime') or
+                                      'N/A')
+                    
+                    # P&L Spalte prüfen
+                    pnl = (trade.get('💰 P&L') or 
+                          trade.get('P&L') or 
+                          trade.get('ProfitLoss') or 
+                          'N/A')
+                    
+                    # Formatierung der Anzeige mit Eröffnungszeit
+                    if eroeffnungszeit != 'N/A':
+                        trade_label = f"{datum} {eroeffnungszeit} - {tradetyp} - Strike: {shortstrike} - P&L: {pnl}"
+                    else:
+                        trade_label = f"{datum} - {tradetyp} - Strike: {shortstrike} - P&L: {pnl}"
+                    trade_options.append((idx, trade_label))
+                
+                if trade_options:
+                    selected_option = st.selectbox(
+                        "Wählen Sie einen Trade für den Optionspreis-Chart:",
+                        options=trade_options,
+                        format_func=lambda x: x[1],
+                        key="trade_selector"
+                    )
+                    
+                    if selected_option:
+                        selected_index = selected_option[0]
+                        selected_trade = display_trades.iloc[selected_index]
+                        
+                        # Zeige ausgewählten Trade an
+                        st.markdown("---")
+                        st.subheader("🎯 Ausgewählter Trade")
+                        
+                        col1, col2, col3 = st.columns(3)
+                        with col1:
+                            st.markdown(f"**Datum:** {selected_trade.get('📅 Datum', 'N/A')}")
+                            st.markdown(f"**Symbol:** {selected_trade.get('🏷️ Symbol', 'N/A')}")
+                        with col2:
+                            st.markdown(f"**Eröffnung:** {selected_trade.get('🕐 Eröffnung', 'N/A')}")
+                            st.markdown(f"**Schließung:** {selected_trade.get('🕐 Schließung', 'N/A')}")
+                        with col3:
+                            st.markdown(f"**P&L:** {selected_trade.get('💰 P&L', 'N/A')}")
+                            st.markdown(f"**Status:** {selected_trade.get('📈 Status', 'N/A')}")
+                        
+                        # Optionspreis-Chart für den ausgewählten Trade
+                        st.markdown("---")
+                        st.subheader("📈 Optionspreis-Chart")
+                        
+                        # Prüfe ob der Trade gültige Optionsdaten hat
+                        if (selected_trade.get('📈 Optionspreis Handelsende') not in ['N/A', 'Keine Daten', 'Keine API-Daten', 'API Probleme', 'Keine Option', 'Fehler'] and
+                            selected_trade.get('🔗 API-Link') not in ['N/A', 'Keine Daten', 'Keine API-Daten', 'API Probleme', 'Keine Option', 'Fehler']):
+                            
+                            # API-Link aus dem Trade extrahieren
+                            api_link = selected_trade.get('🔗 API-Link')
+                            if api_link and api_link.startswith('https://'):
+                                try:
+                                    # Parse API-Link um Parameter zu extrahieren
+                                    from urllib.parse import urlparse, parse_qs
+                                    parsed_url = urlparse(api_link)
+                                    query_params = parse_qs(parsed_url.query)
+                                    
+                                    asset = query_params.get('asset', ['SPX'])[0]
+                                    date = query_params.get('date', [''])[0]
+                                    symbol = query_params.get('symbol', [''])[0]
+                                    
+                                    if symbol.startswith('-'):
+                                        option_type = symbol[1]  # P oder C
+                                        strike = symbol[2:]      # Strike-Preis
+                                        
+                                        # Lade Optionspreis-Daten
+                                        with st.spinner("🔄 Lade Optionspreis-Chart..."):
+                                            api_response = get_option_price_data(asset, date, option_type, strike)
+                                            
+                                            if api_response and isinstance(api_response, list) and len(api_response) > 0:
+                                                # Debug: API-Response anzeigen
+                                                st.info(f"🔍 Debug: API-Response hat {len(api_response)} Einträge")
+                                                if len(api_response) > 0:
+                                                    st.info(f"🔍 Debug: Erstes Element: {str(api_response[0])[:200]}...")
+                                                
+                                                # Chart erstellen
+                                                chart_data = []
+                                                processed_count = 0
+                                                error_count = 0
+                                                
+                                                for i, data_point in enumerate(api_response):
+                                                    if isinstance(data_point, dict):
+                                                        # Verschiedene mögliche Feldnamen prüfen
+                                                        time_str = (data_point.get('dateTime') or  # API verwendet 'dateTime'
+                                                                   data_point.get('time') or 
+                                                                   data_point.get('timestamp') or 
+                                                                   data_point.get('t') or 
+                                                                   data_point.get('datetime'))
+                                                        
+                                                        price = (data_point.get('price') or 
+                                                                data_point.get('value') or 
+                                                                data_point.get('close') or 
+                                                                data_point.get('c') or 
+                                                                data_point.get('p') or 
+                                                                data_point.get('last'))
+                                                        
+                                                        # Debug: Erste 3 Datenpunkte detailliert anzeigen
+                                                        if i < 3:
+                                                            st.info(f"🔍 Debug Punkt {i}: Zeit={time_str}, Preis={price}, Keys={list(data_point.keys())}")
+                                                        
+                                                        if time_str and price:
+                                                            try:
+                                                                # Zeitstempel konvertieren
+                                                                if isinstance(time_str, (int, float)):
+                                                                    # UTC zu Bern-Zeit konvertieren
+                                                                    data_datetime_utc = datetime.datetime.utcfromtimestamp(time_str)
+                                                                    if data_datetime_utc.month in [3, 4, 5, 6, 7, 8, 9, 10]:
+                                                                        data_datetime_bern = data_datetime_utc + datetime.timedelta(hours=2)
+                                                                    else:
+                                                                        data_datetime_bern = data_datetime_utc + datetime.timedelta(hours=1)
+                                                                    time_formatted = data_datetime_bern.strftime('%H:%M:%S')
+                                                                elif isinstance(time_str, str):
+                                                                    # String-Zeitstempel direkt verwenden
+                                                                    time_formatted = time_str
+                                                                else:
+                                                                    time_formatted = str(time_str)
+                                                                
+                                                                # Preis konvertieren
+                                                                if isinstance(price, (int, float)):
+                                                                    price_float = float(price)
+                                                                else:
+                                                                    price_clean = str(price).strip().replace(',', '.').replace('$', '').replace(' ', '')
+                                                                    price_float = float(price_clean)
+                                                                
+                                                                chart_data.append({
+                                                                    'Zeit': time_formatted,
+                                                                    'Optionspreis': price_float
+                                                                })
+                                                                processed_count += 1
+                                                                
+                                                            except (ValueError, TypeError) as e:
+                                                                error_count += 1
+                                                                if error_count <= 3:  # Nur erste 3 Fehler anzeigen
+                                                                    st.warning(f"⚠️ Debug: Fehler bei Punkt {i}: {e}")
+                                                                continue
+                                                        else:
+                                                            # Debug: Fehlende Daten
+                                                            if i < 3:
+                                                                st.warning(f"⚠️ Debug: Punkt {i} hat fehlende Zeit oder Preis-Daten")
+                                                
+                                                st.info(f"📊 Debug: {processed_count} Datenpunkte verarbeitet, {error_count} Fehler")
+                                                
+                                                if chart_data:
+                                                    # DataFrame für Chart erstellen
+                                                    chart_df = pd.DataFrame(chart_data)
+                                                    
+                                                    # Absolutwerte für Short-Optionen (immer positiv anzeigen)
+                                                    chart_df['Optionspreis_Abs'] = chart_df['Optionspreis'].abs()
+                                                    
+                                                    # Chart mit Plotly erstellen - SCHÖNER DESIGN! 🎨
+                                                    import plotly.express as px
+                                                    import plotly.graph_objects as go
+                                                    
+                                                    # Farbe basierend auf Preisentwicklung (mit Absolutwerten)
+                                                    first_price = chart_df['Optionspreis_Abs'].iloc[0]
+                                                    last_price = chart_df['Optionspreis_Abs'].iloc[-1]
+                                                    price_change = last_price - first_price
+                                                    
+                                                    # Intelligente Farbwahl
+                                                    if price_change > 0:
+                                                        line_color = '#28a745'  # Grün für Gewinn
+                                                        fill_color = 'rgba(40, 167, 69, 0.1)'
+                                                        trend_emoji = '📈'
+                                                    elif price_change < 0:
+                                                        line_color = '#dc3545'  # Rot für Verlust
+                                                        fill_color = 'rgba(220, 53, 69, 0.1)'
+                                                        trend_emoji = '📉'
+                                                    else:
+                                                        line_color = '#6c757d'  # Grau für neutral
+                                                        fill_color = 'rgba(108, 117, 125, 0.1)'
+                                                        trend_emoji = '➡️'
+                                                    
+                                                    fig = go.Figure()
+                                                    
+                                                    # Hauptlinie mit schönem Farbverlauf (Absolutwerte)
+                                                    fig.add_trace(go.Scatter(
+                                                        x=chart_df['Zeit'],
+                                                        y=chart_df['Optionspreis_Abs'],
+                                                        mode='lines',
+                                                        name=f'{option_type}{strike}',
+                                                        line=dict(color=line_color, width=3),
+                                                        fill='tonexty',
+                                                        fillcolor=fill_color,
+                                                        hovertemplate='<b>🕐 Zeit:</b> %{x}<br><b>💰 Preis:</b> $%{y:.3f} (abs)<extra></extra>'
+                                                    ))
+                                                    
+                                                    # Start- und End-Marker
+                                                    fig.add_trace(go.Scatter(
+                                                        x=[chart_df['Zeit'].iloc[0], chart_df['Zeit'].iloc[-1]],
+                                                        y=[first_price, last_price],
+                                                        mode='markers',
+                                                        name='Start/Ende',
+                                                        marker=dict(
+                                                            size=[15, 15],
+                                                            color=['#007bff', line_color],
+                                                            symbol=['circle', 'diamond'],
+                                                            line=dict(width=3, color='white')
+                                                        ),
+                                                        hovertemplate='<b>%{text}</b><br><b>💰 Preis:</b> $%{y:.3f} (abs)<extra></extra>',
+                                                        text=['🚀 Start', f'{trend_emoji} Ende'],
+                                                        showlegend=False
+                                                    ))
+                                                    
+                                                    # Modernes, professionelles Layout
+                                                    fig.update_layout(
+                                                        title={
+                                                            'text': f'📊 Optionspreis-Verlauf (Absolutwerte): {tradetyp} - Strike {shortstrike}<br><sub>Asset: {asset} | Datum: {date}</sub>',
+                                                            'x': 0.5,
+                                                            'xanchor': 'center',
+                                                            'font': {'size': 22, 'family': 'Arial Black', 'color': '#2c3e50'}
+                                                        },
+                                                        xaxis=dict(
+                                                            title='🕐 Zeit (Bern Zeitzone)',
+                                                            showgrid=True,
+                                                            gridwidth=1,
+                                                            gridcolor='rgba(128, 128, 128, 0.2)',
+                                                            showline=True,
+                                                            linewidth=2,
+                                                            linecolor='rgb(204, 204, 204)',
+                                                            tickangle=45,
+                                                            tickfont=dict(size=11),
+                                                            # Weniger Zeitstempel anzeigen
+                                                            nticks=8,
+                                                            tickmode='auto',
+                                                            # Intelligente Zeitformatierung
+                                                            tickformat='%H:%M'
+                                                        ),
+                                                        yaxis=dict(
+                                                            title='💰 Optionspreis (USD)',
+                                                            showgrid=True,
+                                                            gridwidth=1,
+                                                            gridcolor='rgba(128, 128, 128, 0.2)',
+                                                            showline=True,
+                                                            linewidth=2,
+                                                            linecolor='rgb(204, 204, 204)',
+                                                            tickformat='$.3f',
+                                                            tickfont=dict(size=11)
+                                                        ),
+                                                        plot_bgcolor='white',
+                                                        paper_bgcolor='#f8f9fa',
+                                                        height=600,
+                                                        margin=dict(l=80, r=80, t=100, b=80),
+                                                        hovermode='x unified',
+                                                        showlegend=False,
+                                                        font=dict(family='Arial', size=12, color='#2c3e50')
+                                                    )
+                                                    
+                                                    st.plotly_chart(fig, use_container_width=True)
+                                                    
+                                                    # Schöne Statistiken mit erweiterten Metriken (Absolutwerte)
+                                                    min_price = chart_df['Optionspreis_Abs'].min()
+                                                    max_price = chart_df['Optionspreis_Abs'].max()
+                                                    price_range = max_price - min_price
+                                                    avg_price = chart_df['Optionspreis_Abs'].mean()
+                                                    volatility = chart_df['Optionspreis_Abs'].std()
+                                                    
+                                                    st.markdown("### 📊 Chart-Statistiken & Kennzahlen")
+                                                    
+                                                    # Erste Reihe: Haupt-Metriken
+                                                    col1, col2, col3, col4 = st.columns(4)
+                                                    
+                                                    with col1:
+                                                        change_pct = ((last_price - first_price) / abs(first_price) * 100) if first_price != 0 else 0
+                                                        delta_color = "normal" if change_pct >= 0 else "inverse"
+                                                        st.metric(
+                                                            f"{trend_emoji} Gesamtveränderung", 
+                                                            f"${price_change:.3f}",
+                                                            delta=f"{change_pct:.2f}%",
+                                                            delta_color=delta_color
+                                                        )
+                                                    
+                                                    with col2:
+                                                        st.metric("📉 Tiefster Preis", f"${min_price:.3f}")
+                                                    
+                                                    with col3:
+                                                        st.metric("📈 Höchster Preis", f"${max_price:.3f}")
+                                                    
+                                                    with col4:
+                                                        st.metric("🎯 Letzter Preis", f"${last_price:.3f}")
+                                                    
+                                                    # Zweite Reihe: Erweiterte Metriken
+                                                    col1, col2, col3, col4 = st.columns(4)
+                                                    
+                                                    with col1:
+                                                        st.metric("⚖️ Durchschnittspreis", f"${avg_price:.3f}")
+                                                    
+                                                    with col2:
+                                                        st.metric("📊 Preisspanne", f"${price_range:.3f}")
+                                                    
+                                                    with col3:
+                                                        st.metric("📈 Volatilität (σ)", f"${volatility:.3f}")
+                                                    
+                                                    with col4:
+                                                        st.metric("🔢 Datenpunkte", f"{len(chart_data):,}")
+                                                    
+                                                    # Zusätzliche Info-Box
+                                                    with st.expander("ℹ️ Chart-Informationen", expanded=False):
+                                                        col1, col2 = st.columns(2)
+                                                        with col1:
+                                                            st.write(f"**🎯 Option Details:**")
+                                                            st.write(f"• Asset: `{asset}`")
+                                                            st.write(f"• Typ: `{option_type}`")
+                                                            st.write(f"• Strike: `{strike}`")
+                                                            st.write(f"• Datum: `{date}`")
+                                                        with col2:
+                                                            st.write(f"**📊 Preis-Analyse:**")
+                                                            st.write(f"• Startpreis: `${first_price:.3f}`")
+                                                            st.write(f"• Endpreis: `${last_price:.3f}`")
+                                                            rel_change = (price_range / avg_price * 100) if avg_price != 0 else 0
+                                                            st.write(f"• Relative Spanne: `{rel_change:.1f}%`")
+                                                            st.write(f"• Zeitzone: `Bern (CEST/CET)`")
+                                                    
+                                                else:
+                                                    st.warning("⚠️ Keine gültigen Chart-Daten verfügbar")
+                                            else:
+                                                st.error("❌ Konnte Optionspreis-Daten nicht laden")
+                                                
+                                except Exception as chart_error:
+                                    st.error(f"❌ Fehler beim Erstellen des Charts: {chart_error}")
+                            else:
+                                st.warning("⚠️ Kein gültiger API-Link verfügbar")
+                        else:
+                            st.info("ℹ️ Wählen Sie einen Trade mit gültigen Optionsdaten aus")
+                else:
+                    st.info("ℹ️ Keine Trades für Chart-Auswahl verfügbar")
+                
             except Exception as e:
                 st.error(f"❌ Fehler beim Anzeigen der Tabelle: {e}")
                 st.text(final_table.to_string())
@@ -1250,10 +1621,6 @@ def show_tat_navigator_page(data_loader, db_path):
             # API-Test Button
             if st.button("🧪 API-Verbindung testen", key="api_test"):
                 test_api_connection()
-            
-            # Vereinfachte Chart-Funktionalität
-            st.subheader("📈 Optionspreis-Chart")
-            st.info("📊 Chart-Funktionalität wird geladen...")
             
         else:
             st.warning("⚠️ Keine gefilterten Trades gefunden!")
