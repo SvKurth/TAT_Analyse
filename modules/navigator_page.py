@@ -105,48 +105,146 @@ def show_tat_navigator_page(data_loader, db_path):
         # API-Cache Statistiken
         try:
             api_cache_stats = api_cache.get_cache_stats()
-            st.markdown("**🗄️ API-Cache**")
-            col1, col2 = st.columns(2)
-            with col1:
-                st.metric("Einträge", f"{api_cache_stats['total_entries']}")
-            with col2:
-                st.metric("Größe", f"{api_cache_stats['total_size_mb']:.1f} MB")
             
-            col1, col2 = st.columns(2)
-            with col1:
-                st.metric("Letzte 7 Tage", f"{api_cache_stats['recent_entries']}")
-            with col2:
-                if api_cache_stats['top_entries']:
-                    top_entry = api_cache_stats['top_entries'][0]
-                    st.metric("Top Entry", f"{top_entry['size_kb']:.1f} KB")
+            if api_cache_stats:
+                st.markdown("**🗄️ API-Cache**")
+                
+                # Robuste Behandlung verschiedener Rückgabetypen
+                if isinstance(api_cache_stats, dict):
+                    # Standard Dictionary-Format
+                    stats = api_cache_stats
+                elif isinstance(api_cache_stats, tuple):
+                    # Tuple-Format - konvertiere zu Dictionary
+                    try:
+                        if hasattr(api_cache_stats, '_asdict'):
+                            # Named Tuple
+                            stats = dict(api_cache_stats._asdict())
+                        else:
+                            # Reguläres Tuple
+                            if len(api_cache_stats) >= 4:
+                                stats = {
+                                    'total_entries': api_cache_stats[0] if api_cache_stats[0] is not None else 0,
+                                    'total_size_mb': api_cache_stats[1] if api_cache_stats[1] is not None else 0,
+                                    'recent_entries': api_cache_stats[2] if api_cache_stats[2] is not None else 0,
+                                    'top_entries': api_cache_stats[3] if api_cache_stats[3] is not None else []
+                                }
+                            else:
+                                stats = {}
+                    except Exception as conv_error:
+                        st.error(f"❌ Konvertierungsfehler: {conv_error}")
+                        stats = {}
                 else:
-                    st.metric("Top Entry", "N/A")
-        except Exception:
-            st.info("🗄️ API-Cache: Nicht verfügbar")
+                    # Unbekannter Typ
+                    st.error(f"❌ Unbekannter Rückgabetyp: {type(api_cache_stats)}")
+                    stats = {}
+                
+                # Zeige Statistiken an
+                if stats:
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        total_entries = stats.get('total_entries', 0)
+                        st.metric("Einträge", f"{total_entries}")
+                    with col2:
+                        total_size_mb = stats.get('total_size_mb', 0)
+                        st.metric("Größe", f"{total_size_mb:.1f} MB")
+                    
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        recent_entries = stats.get('recent_entries', 0)
+                        st.metric("Letzte 7 Tage", f"{recent_entries}")
+                    with col2:
+                        top_entries = stats.get('top_entries', [])
+                        if top_entries and len(top_entries) > 0:
+                            if isinstance(top_entries[0], dict):
+                                # Dictionary-Format
+                                top_entry = top_entries[0]
+                                size_kb = top_entry.get('size_kb', 0)
+                            else:
+                                # Tuple-Format
+                                size_kb = top_entries[0] if isinstance(top_entries[0], (int, float)) else 0
+                            st.metric("Top Entry", f"{size_kb:.1f} KB")
+                        else:
+                            st.metric("Top Entry", "N/A")
+                else:
+                    st.info("🗄️ API-Cache: Keine gültigen Statistiken verfügbar")
+            else:
+                st.info("🗄️ API-Cache: Keine Statistiken verfügbar")
+        except Exception as e:
+            st.error(f"❌ API-Cache Fehler: {str(e)}")
+            st.info("🗄️ API-Cache: Fehler beim Laden der Statistiken")
         
         st.markdown("---")
         
         # Trade-Cache Statistiken
         try:
             trade_cache_stats = trade_results_cache.get_cache_stats()
-            st.markdown("**⚡ Trade-Cache**")
-            col1, col2 = st.columns(2)
-            with col1:
-                st.metric("Einträge", f"{trade_cache_stats['total_entries']}")
-            with col2:
-                st.metric("Größe", f"{trade_cache_stats['total_size_kb']:.1f} KB")
             
-            col1, col2 = st.columns(2)
-            with col1:
-                st.metric("Letzte 30 Tage", f"{trade_cache_stats['recent_entries']}")
-            with col2:
-                if trade_cache_stats['top_entries']:
-                    top_entry = trade_cache_stats['top_entries'][0]
-                    st.metric("Top Entry", f"{top_entry['size_kb']:.1f} KB")
+            if trade_cache_stats:
+                st.markdown("**⚡ Trade-Cache**")
+                
+                # Robuste Behandlung verschiedener Rückgabetypen
+                if isinstance(trade_cache_stats, dict):
+                    # Standard Dictionary-Format
+                    stats = trade_cache_stats
+                elif isinstance(trade_cache_stats, tuple):
+                    # Tuple-Format - konvertiere zu Dictionary
+                    try:
+                        if hasattr(trade_cache_stats, '_asdict'):
+                            # Named Tuple
+                            stats = dict(trade_cache_stats._asdict())
+                        else:
+                            # Reguläres Tuple
+                            if len(trade_cache_stats) >= 4:
+                                stats = {
+                                    'total_entries': trade_cache_stats[0] if trade_cache_stats[0] is not None else 0,
+                                    'total_size_kb': trade_cache_stats[1] if trade_cache_stats[1] is not None else 0,
+                                    'recent_entries': trade_cache_stats[2] if trade_cache_stats[2] is not None else 0,
+                                    'top_entries': trade_cache_stats[3] if trade_cache_stats[3] is not None else []
+                                }
+                            else:
+                                stats = {}
+                    except Exception as conv_error:
+                        st.error(f"❌ Trade-Cache Konvertierungsfehler: {conv_error}")
+                        stats = {}
                 else:
-                    st.metric("Top Entry", "N/A")
-        except Exception:
-            st.info("⚡ Trade-Cache: Nicht verfügbar")
+                    # Unbekannter Typ
+                    st.error(f"❌ Trade-Cache unbekannter Rückgabetyp: {type(trade_cache_stats)}")
+                    stats = {}
+                
+                # Zeige Statistiken an
+                if stats:
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        total_entries = stats.get('total_entries', 0)
+                        st.metric("Einträge", f"{total_entries}")
+                    with col2:
+                        total_size_kb = stats.get('total_size_kb', 0)
+                        st.metric("Größe", f"{total_size_kb:.1f} KB")
+                    
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        recent_entries = stats.get('recent_entries', 0)
+                        st.metric("Letzte 30 Tage", f"{recent_entries}")
+                    with col2:
+                        top_entries = stats.get('top_entries', [])
+                        if top_entries and len(top_entries) > 0:
+                            if isinstance(top_entries[0], dict):
+                                # Dictionary-Format
+                                top_entry = top_entries[0]
+                                size_kb = top_entry.get('size_kb', 0)
+                            else:
+                                # Tuple-Format
+                                size_kb = top_entries[0] if isinstance(top_entries[0], (int, float)) else 0
+                            st.metric("Top Entry", f"{size_kb:.1f} KB")
+                        else:
+                            st.metric("Top Entry", "N/A")
+                else:
+                    st.info("⚡ Trade-Cache: Keine gültigen Statistiken verfügbar")
+            else:
+                st.info("⚡ Trade-Cache: Keine Statistiken verfügbar")
+        except Exception as e:
+            st.error(f"❌ Trade-Cache Fehler: {str(e)}")
+            st.info("⚡ Trade-Cache: Fehler beim Laden der Statistiken")
         
         st.markdown("---")
         
