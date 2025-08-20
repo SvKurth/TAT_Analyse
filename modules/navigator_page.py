@@ -23,6 +23,77 @@ def show_tat_navigator_page(data_loader, db_path):
     st.header("🎯 TAT Tradenavigator")
     st.markdown("---")
     
+    # CSS für schöne Metrikkacheln (wie auf der Metrikseite)
+    st.markdown("""
+    <style>
+        .metric-tile {
+            background-color: #ffffff;
+            border-radius: 15px;
+            padding: 25px;
+            margin: 15px 0;
+            border: 1px solid #e9ecef;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.1);
+            color: #374151;
+            text-align: center;
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+        .metric-tile:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 8px 24px rgba(0,0,0,0.15);
+        }
+        .metric-header {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        .metric-icon {
+            font-size: 32px;
+            margin-bottom: 10px;
+        }
+        .metric-title {
+            font-size: 16px;
+            font-weight: 600;
+            color: #374151;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 5px;
+        }
+        .metric-value {
+            font-size: 32px;
+            font-weight: bold;
+            margin: 15px 0;
+        }
+        .metric-description {
+            font-size: 13px;
+            color: #6c757d;
+            font-style: normal;
+            line-height: 1.4;
+        }
+        .positive { 
+            color: #28a745; 
+        }
+        .negative { 
+            color: #dc3545; 
+        }
+        .neutral { 
+            color: #374151; 
+        }
+        .metric-section {
+            margin: 40px 0;
+        }
+        .metric-section h3 {
+            color: #374151;
+            font-size: 24px;
+            font-weight: 700;
+            margin-bottom: 25px;
+            text-align: center;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+    </style>
+    """, unsafe_allow_html=True)
+    
     # Beide Caches initialisieren
     api_cache = get_cache_instance()
     trade_results_cache = get_trade_results_cache()
@@ -269,8 +340,6 @@ def show_tat_navigator_page(data_loader, db_path):
         
         # Trades anzeigen
         if len(trade_data) > 0:
-            st.success(f"✅ {len(trade_data)} gefilterte Trades gefunden")
-            
             # Tabelle vorbereiten
             display_trades = trade_data.copy()
             
@@ -319,34 +388,98 @@ def show_tat_navigator_page(data_loader, db_path):
                     lambda x: x.strftime('%H:%M:%S') if pd.notna(x) and hasattr(x, 'strftime') else str(x)[-8:] if pd.notna(x) and len(str(x)) >= 8 else str(x)
                 )
             
-            # Metriken
+            # Metriken in schönen Kacheln
+            st.markdown('<div class="metric-section"><h3>📊 Trading Übersicht</h3></div>', unsafe_allow_html=True)
+            
             col1, col2, col3, col4 = st.columns(4)
             
             with col1:
                 total_trades = len(trade_data)
-                st.metric("📈 Trades", total_trades)
+                st.markdown(f"""
+                <div class="metric-tile">
+                    <div class="metric-header">
+                        <div class="metric-icon">📈</div>
+                        <div class="metric-title">TRADES</div>
+                    </div>
+                    <div class="metric-value neutral">{total_trades}</div>
+                    <div class="metric-description">Anzahl aller Trades</div>
+                </div>
+                """, unsafe_allow_html=True)
             
             with col2:
                 if profit_cols:
                     total_pnl = trade_data[profit_cols[0]].sum()
-                    st.metric("💰 P&L Gesamt", f"{total_pnl:.2f}")
+                    st.markdown(f"""
+                    <div class="metric-tile">
+                        <div class="metric-header">
+                            <div class="metric-icon">💰</div>
+                            <div class="metric-title">P&L GESAMT</div>
+                        </div>
+                        <div class="metric-value {'negative' if total_pnl < 0 else 'positive'}">${total_pnl:,.2f}</div>
+                        <div class="metric-description">Gesamter Profit/Loss</div>
+                    </div>
+                    """, unsafe_allow_html=True)
                 else:
-                    st.metric("💰 P&L Gesamt", "N/A")
+                    st.markdown(f"""
+                    <div class="metric-tile">
+                        <div class="metric-header">
+                            <div class="metric-icon">💰</div>
+                            <div class="metric-title">P&L GESAMT</div>
+                        </div>
+                        <div class="metric-value neutral">N/A</div>
+                        <div class="metric-description">Keine P&L-Daten verfügbar</div>
+                    </div>
+                    """, unsafe_allow_html=True)
             
             with col3:
                 if 'Status' in trade_data.columns:
                     stopped_trades = trade_data[trade_data['Status'] == 'Stopped']
                     total_stopped = len(stopped_trades)
-                    st.metric("🛑 Gestoppte Trades", total_stopped)
+                    st.markdown(f"""
+                    <div class="metric-tile">
+                        <div class="metric-header">
+                            <div class="metric-icon">🛑</div>
+                            <div class="metric-title">GESTOPPTE TRADES</div>
+                        </div>
+                        <div class="metric-value neutral">{total_stopped}</div>
+                        <div class="metric-description">Anzahl gestoppter Trades</div>
+                    </div>
+                    """, unsafe_allow_html=True)
                 else:
-                    st.metric("🛑 Gestoppte Trades", "N/A")
+                    st.markdown(f"""
+                    <div class="metric-tile">
+                        <div class="metric-header">
+                            <div class="metric-icon">🛑</div>
+                            <div class="metric-title">GESTOPPTE TRADES</div>
+                        </div>
+                        <div class="metric-value neutral">N/A</div>
+                        <div class="metric-description">Status-Spalte nicht verfügbar</div>
+                    </div>
+                    """, unsafe_allow_html=True)
             
             with col4:
                 if 'Status' in trade_data.columns:
-                    # Weitere Metrik hier hinzufügen falls gewünscht
-                    st.metric("📊 Status", "Verfügbar")
+                    st.markdown(f"""
+                    <div class="metric-tile">
+                        <div class="metric-header">
+                            <div class="metric-icon">📊</div>
+                            <div class="metric-title">STATUS</div>
+                        </div>
+                        <div class="metric-value neutral">Verfügbar</div>
+                        <div class="metric-description">Status-Informationen aktiv</div>
+                    </div>
+                    """, unsafe_allow_html=True)
                 else:
-                    st.metric("📊 Status", "N/A")
+                    st.markdown(f"""
+                    <div class="metric-tile">
+                        <div class="metric-header">
+                            <div class="metric-icon">📊</div>
+                            <div class="metric-title">STATUS</div>
+                        </div>
+                        <div class="metric-value neutral">N/A</div>
+                        <div class="metric-description">Status-Spalte nicht verfügbar</div>
+                    </div>
+                    """, unsafe_allow_html=True)
             
             # Überschrift für Tabelle
             st.subheader(f"📋 Alle gefilterten Trades")
@@ -432,8 +565,6 @@ def show_tat_navigator_page(data_loader, db_path):
                         commission_cols.append(col)
                 
                 if commission_cols:
-                    st.info(f"🔍 Gefundene Commission-Spalten: {commission_cols}")
-                    
                     # Commission-Werte kombinieren
                     combined_commission = pd.Series(0.0, index=display_trades.index)
                     
