@@ -36,6 +36,16 @@ class DataProcessingService:
         try:
             self.logger.info("Formatiere Trade-Daten...")
             
+            # Prüfe ob DataFrame leer ist
+            if data.empty:
+                self.logger.warning("DataFrame ist leer - keine Daten zum Formatieren vorhanden")
+                return data
+            
+            # Prüfe ob DataFrame Spalten hat
+            if len(data.columns) == 0:
+                self.logger.warning("DataFrame hat keine Spalten - keine Daten zum Formatieren vorhanden")
+                return data
+            
             # Kopie der Daten erstellen
             formatted = data.copy()
             
@@ -112,7 +122,7 @@ class DataProcessingService:
                     formatted[col] = formatted[col].astype(str)
             
             # Primärschlüssel als erste Spalte setzen
-            if primary_keys:
+            if primary_keys and len(formatted.columns) > 0:
                 # Primärschlüssel-Spalten zuerst setzen
                 # Verwende die ursprünglichen Spaltennamen (ohne Änderung)
                 pk_cols = []
@@ -127,16 +137,28 @@ class DataProcessingService:
                                 pk_cols.append(col)
                                 break
                 
-                if pk_cols:
-                    other_cols = [col for col in formatted.columns if col not in pk_cols]
+                if pk_cols and len(pk_cols) > 0:
+                    # Prüfe ob alle pk_cols tatsächlich in den formatierten Daten existieren
+                    valid_pk_cols = [pk for pk in pk_cols if pk in formatted.columns]
                     
-                    # Neue Spaltenreihenfolge: Primärschlüssel zuerst, dann andere Spalten
-                    new_column_order = pk_cols + other_cols
-                    formatted = formatted[new_column_order]
-                    
-                    self.logger.info(f"Primärschlüssel-Spalten als erste Spalten gesetzt: {pk_cols}")
+                    if valid_pk_cols:
+                        other_cols = [col for col in formatted.columns if col not in valid_pk_cols]
+                        
+                        # Neue Spaltenreihenfolge: Primärschlüssel zuerst, dann andere Spalten
+                        new_column_order = valid_pk_cols + other_cols
+                        
+                        # Prüfe ob alle Spalten in new_column_order tatsächlich existieren
+                        existing_columns = [col for col in new_column_order if col in formatted.columns]
+                        
+                        if existing_columns and len(existing_columns) > 0:
+                            formatted = formatted[existing_columns]
+                            self.logger.info(f"Primärschlüssel-Spalten als erste Spalten gesetzt: {valid_pk_cols}")
+                        else:
+                            self.logger.warning("Keine gültigen Spalten für die Neuanordnung gefunden")
+                    else:
+                        self.logger.warning(f"Keine der Primärschlüssel-Spalten {primary_keys} in den formatierten Daten gefunden")
                 else:
-                    self.logger.warning(f"Konnte keine der Primärschlüssel-Spalten {primary_keys} in den formatierten Daten finden")
+                    self.logger.warning(f"Keine gültigen Primärschlüssel-Spalten gefunden")
             else:
                 self.logger.warning("Keine Primärschlüssel-Spalten gefunden, daher keine Reihenfolge angepasst.")
             
@@ -155,17 +177,20 @@ class DataProcessingService:
                 self.logger.info(f"Duplikate entfernt: {initial_rows - len(formatted)} Zeilen")
             
             # Fehlende Werte behandeln
-            missing_count = formatted.isnull().sum().sum()
-            if missing_count > 0:
-                self.logger.info(f"Fehlende Werte gefunden: {missing_count} insgesamt")
-                
-                # Numerische Spalten mit 0 füllen
-                numeric_cols = formatted.select_dtypes(include=['number']).columns
-                formatted[numeric_cols] = formatted[numeric_cols].fillna(0)
-                
-                # Textspalten mit 'Unbekannt' füllen
-                text_cols = formatted.select_dtypes(include=['object']).columns
-                formatted[text_cols] = formatted[text_cols].fillna('Unbekannt')
+            if not formatted.empty and len(formatted.columns) > 0:
+                missing_count = formatted.isnull().sum().sum()
+                if missing_count > 0:
+                    self.logger.info(f"Fehlende Werte gefunden: {missing_count} insgesamt")
+                    
+                    # Numerische Spalten mit 0 füllen
+                    numeric_cols = formatted.select_dtypes(include=['number']).columns
+                    if len(numeric_cols) > 0:
+                        formatted[numeric_cols] = formatted[numeric_cols].fillna(0)
+                    
+                    # Textspalten mit 'Unbekannt' füllen
+                    text_cols = formatted.select_dtypes(include=['object']).columns
+                    if len(text_cols) > 0:
+                        formatted[text_cols] = formatted[text_cols].fillna('Unbekannt')
             
             self.logger.info(f"Trade-Daten erfolgreich formatiert: {len(formatted)} Zeilen")
             return formatted

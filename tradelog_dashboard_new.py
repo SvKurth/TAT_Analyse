@@ -96,13 +96,28 @@ def main():
             with open(temp_path, "wb") as f:
                 f.write(uploaded_file.getvalue())
             
-            # Seite anzeigen
-            if is_sqlite_file(str(temp_path)):
+            # Prüfe ob es eine gültige SQLite-Datei ist
+            if not is_sqlite_file(str(temp_path)):
+                st.error("❌ Die hochgeladene Datei scheint keine gültige SQLite-Datenbank zu sein.")
+                st.info("💡 Bitte stellen Sie sicher, dass Sie eine gültige SQLite-Datenbank hochladen.")
+                return
+            
+            # Prüfe ob die Datenbank gültig ist
+            try:
+                # Seite anzeigen
                 show_page(page, data_loader, str(temp_path))
-            else:
-                st.error("Die hochgeladene Datei scheint keine gültige SQLite-Datenbank zu sein.")
+            except Exception as e:
+                st.error(f"❌ Fehler beim Laden der Datenbank: {e}")
+                st.info("💡 Die Datenbank könnte beschädigt oder leer sein.")
+                
+                # Debug-Informationen anzeigen
+                with st.expander("🐛 Debug-Informationen"):
+                    st.write(f"**Fehler:** {str(e)}")
+                    st.write(f"**Datei:** {uploaded_file.name}")
+                    st.write(f"**Größe:** {len(uploaded_file.getvalue())} Bytes")
+                    
         except Exception as e:
-            st.error(f"Fehler beim Laden der Daten: {e}")
+            st.error(f"❌ Fehler beim Laden der Daten: {e}")
         finally:
             # Temporäre Datei löschen
             try:
@@ -111,27 +126,96 @@ def main():
                 pass
                 
     elif db_path and Path(db_path).exists():
-        if is_sqlite_file(db_path):
-            try:
-                show_page(page, data_loader, db_path)
-            except Exception as e:
-                st.error(f"Fehler beim Laden der Daten: {e}")
-        else:
-            st.error(f"Die Datei {Path(db_path).name} scheint keine gültige SQLite-Datenbank zu sein.")
+        if not is_sqlite_file(db_path):
+            st.error(f"❌ Die Datei {Path(db_path).name} scheint keine gültige SQLite-Datenbank zu sein.")
+            st.info("💡 Bitte stellen Sie sicher, dass Sie einen gültigen Pfad zu einer SQLite-Datenbank eingeben.")
+            return
+        
+        try:
+            show_page(page, data_loader, db_path)
+        except Exception as e:
+            st.error(f"❌ Fehler beim Laden der Datenbank: {e}")
+            st.info("💡 Die Datenbank könnte beschädigt oder leer sein.")
+            
+            # Debug-Informationen anzeigen
+            with st.expander("🐛 Debug-Informationen"):
+                st.write(f"**Fehler:** {str(e)}")
+                st.write(f"**Pfad:** {db_path}")
+                st.write(f"**Existiert:** {Path(db_path).exists()}")
+                st.write(f"**Größe:** {Path(db_path).stat().st_size if Path(db_path).exists() else 'N/A'} Bytes")
     
     else:
         show_welcome_screen()
 
 def show_page(page, data_loader, db_path):
     """Zeigt die gewählte Seite an."""
-    if page == "📋 Übersicht":
-        show_overview_page(data_loader, db_path)
-    elif page == "📈 Trade-Tabelle":
-        show_trade_table_page(data_loader, db_path)
-    elif page == "📊 Metriken":
-        show_metrics_page(data_loader, db_path)
-    elif page == "🎯 TAT Tradenavigator":
-        show_tat_navigator_page(data_loader, db_path)
+    try:
+        if page == "📋 Übersicht":
+            show_overview_page(data_loader, db_path)
+        elif page == "📈 Trade-Tabelle":
+            show_trade_table_page(data_loader, db_path)
+        elif page == "📊 Metriken":
+            show_metrics_page(data_loader, db_path)
+        elif page == "🎯 TAT Tradenavigator":
+            show_tat_navigator_page(data_loader, db_path)
+    except Exception as e:
+        st.error(f"❌ Fehler beim Laden der Seite '{page}': {e}")
+        st.info("💡 Versuchen Sie es erneut oder wählen Sie eine andere Seite aus.")
+        
+        # Debug-Informationen anzeigen
+        with st.expander("🐛 Debug-Informationen"):
+            st.write(f"**Fehler:** {str(e)}")
+            st.write(f"**Seite:** {page}")
+            st.write(f"**Datenbank:** {db_path}")
+            st.write(f"**Datenloader:** {type(data_loader).__name__}")
+
+def validate_database(db_path: str, data_loader) -> bool:
+    """Validiert eine Datenbank und zeigt Informationen an."""
+    try:
+        st.info("🔍 Validiere Datenbank...")
+        
+        # Datenbankinformationen abrufen
+        db_info = data_loader.get_sqlite_table_info(db_path)
+        
+        if not db_info or 'tables' not in db_info:
+            st.error("❌ Konnte keine Tabelleninformationen abrufen")
+            return False
+        
+        tables = db_info['tables']
+        
+        if not tables:
+            st.error("❌ Keine Tabellen in der Datenbank gefunden")
+            return False
+        
+        st.success(f"✅ Datenbank validiert: {len(tables)} Tabellen gefunden")
+        
+        # Tabellenübersicht anzeigen
+        with st.expander("📋 Tabellenübersicht"):
+            for table_name, table_info in tables.items():
+                st.write(f"**{table_name}** ({table_info['row_count']} Zeilen, {len(table_info['columns'])} Spalten)")
+                
+                # Spalten anzeigen
+                columns_text = ", ".join([f"{col['name']}({col['type']})" for col in table_info['columns'][:5]])
+                if len(table_info['columns']) > 5:
+                    columns_text += f" ... und {len(table_info['columns']) - 5} weitere"
+                st.write(f"Spalten: {columns_text}")
+                st.write("---")
+        
+        # Trade-Tabelle suchen
+        trade_table = data_loader.database_service.find_trade_table(db_path)
+        if trade_table:
+            st.success(f"🎯 Trade-Tabelle gefunden: {trade_table}")
+            return True
+        else:
+            st.warning("⚠️ Keine Trade-Tabelle gefunden")
+            st.info("💡 Verfügbare Tabellen:")
+            for table_name in tables.keys():
+                st.write(f"- {table_name}")
+            return False
+            
+    except Exception as e:
+        st.error(f"❌ Fehler bei der Datenbankvalidierung: {e}")
+        return False
 
 # Module-Funktionen sind bereits importiert
 

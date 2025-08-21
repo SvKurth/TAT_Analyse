@@ -14,6 +14,26 @@ def show_trade_table_page(data_loader, db_path):
     try:
         # Trade-Tabelle laden
         trade_data = data_loader.load_trade_table(db_path)
+        
+        # Prüfe ob Daten geladen wurden
+        if trade_data is None:
+            st.error("❌ Keine Daten geladen - Trade-Tabelle ist None")
+            return
+        
+        # Prüfe ob DataFrame leer ist
+        if trade_data.empty:
+            st.warning("⚠️ Trade-Tabelle ist leer - keine Daten zum Anzeigen vorhanden")
+            st.info("💡 Mögliche Ursachen:")
+            st.info("- Die ausgewählte Tabelle enthält keine Daten")
+            st.info("- Die Datenbank ist leer")
+            st.info("- Es gab einen Fehler beim Laden der Daten")
+            return
+        
+        # Prüfe ob DataFrame Spalten hat
+        if len(trade_data.columns) == 0:
+            st.error("❌ Trade-Tabelle hat keine Spalten - keine Daten zum Anzeigen vorhanden")
+            return
+        
         st.success(f"✅ Trade-Tabelle geladen: {len(trade_data)} Zeilen, {len(trade_data.columns)} Spalten")
         
         # Metriken

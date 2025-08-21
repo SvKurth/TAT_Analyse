@@ -204,10 +204,25 @@ class DatabaseService:
             with self.get_connection(db_path) as conn:
                 cursor = conn.cursor()
                 
+                # Prüfe ob Tabelle existiert
+                cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name=?", (table_name,))
+                if not cursor.fetchone():
+                    raise ValueError(f"Tabelle '{table_name}' existiert nicht in der Datenbank")
+                
                 # Tabellenstruktur analysieren
                 cursor.execute(f"PRAGMA table_info('{table_name}')")
                 columns_info = cursor.fetchall()
+                
+                if not columns_info:
+                    self.logger.warning(f"Tabelle '{table_name}' hat keine Spalten")
+                    return pd.DataFrame(), []
+                
                 columns = [col[1] for col in columns_info]
+                
+                # Prüfe ob Tabelle Spalten hat
+                if len(columns) == 0:
+                    self.logger.warning(f"Tabelle '{table_name}' hat keine Spalten")
+                    return pd.DataFrame(), []
                 
                 # Primärschlüssel identifizieren
                 primary_keys = []
@@ -221,6 +236,16 @@ class DatabaseService:
                 
                 # Alle Daten aus der Tabelle laden
                 data = pd.read_sql_query(f"SELECT * FROM '{table_name}'", conn)
+                
+                # Prüfe ob Daten geladen wurden
+                if data.empty:
+                    self.logger.warning(f"Tabelle '{table_name}' ist leer (keine Zeilen)")
+                    return data, primary_keys
+                
+                # Prüfe ob DataFrame Spalten hat
+                if len(data.columns) == 0:
+                    self.logger.warning(f"Tabelle '{table_name}' hat keine Spalten in den geladenen Daten")
+                    return data, primary_keys
                 
                 self.logger.info(f"Tabellendaten geladen: {len(data)} Zeilen, {len(columns)} Spalten")
                 return data, primary_keys

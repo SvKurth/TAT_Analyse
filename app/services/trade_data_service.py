@@ -68,13 +68,37 @@ class TradeDataService:
             # Trade-Tabelle finden
             trade_table = self.database_service.find_trade_table(db_path)
             if trade_table is None:
-                raise ValueError(f"Keine Trade-Tabelle in der Datenbank {db_path} gefunden")
+                self.logger.error(f"Keine Trade-Tabelle in der Datenbank {db_path} gefunden")
+                # Fallback: Alle verfügbaren Tabellen anzeigen
+                db_info = self.database_service.get_table_info(db_path)
+                available_tables = list(db_info['tables'].keys())
+                raise ValueError(f"Keine Trade-Tabelle in der Datenbank {db_path} gefunden. Verfügbare Tabellen: {available_tables}")
             
             # Daten laden
             data, primary_keys = self.database_service.load_table_data(db_path, trade_table)
             
+            # Prüfe ob Daten geladen wurden
+            if data is None:
+                self.logger.error("Keine Daten aus der Trade-Tabelle geladen")
+                raise ValueError("Keine Daten aus der Trade-Tabelle geladen")
+            
+            # Prüfe ob DataFrame leer ist
+            if data.empty:
+                self.logger.warning(f"Trade-Tabelle '{trade_table}' ist leer")
+                return data  # Leerer DataFrame zurückgeben
+            
+            # Prüfe ob DataFrame Spalten hat
+            if len(data.columns) == 0:
+                self.logger.warning(f"Trade-Tabelle '{trade_table}' hat keine Spalten")
+                return data  # DataFrame ohne Spalten zurückgeben
+            
             # Daten formatieren
             formatted_data = self.data_processing_service.format_trade_data(data, primary_keys)
+            
+            # Prüfe ob formatierte Daten gültig sind
+            if formatted_data is None:
+                self.logger.error("Formatierte Daten sind None")
+                raise ValueError("Formatierte Daten sind None")
             
             self.logger.info(f"Trade-Tabelle erfolgreich geladen: {len(formatted_data)} Zeilen")
             return formatted_data

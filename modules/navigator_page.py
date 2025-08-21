@@ -8,6 +8,8 @@ import pandas as pd
 import datetime
 import time
 from pathlib import Path
+import plotly.graph_objects as go
+import plotly.express as px
 from modules.api_charts import (
     get_option_price_data, 
     get_spx_vix_data, 
@@ -1311,7 +1313,17 @@ def show_tat_navigator_page(data_loader, db_path):
                     
                     if selected_option:
                         selected_index = selected_option[0]
-                        selected_trade = display_trades.iloc[selected_index]
+                        
+                        # Sichere Auswahl des ausgewählten Trades
+                        try:
+                            if selected_index in display_trades.index:
+                                selected_trade = display_trades.loc[selected_index]
+                            else:
+                                st.error(f"❌ Trade mit Index {selected_index} nicht gefunden")
+                                return
+                        except Exception as index_error:
+                            st.error(f"❌ Fehler beim Zugriff auf Trade-Index {selected_index}: {index_error}")
+                            return
                         
                         # Zeige ausgewählten Trade an
                         st.markdown("---")
@@ -1368,6 +1380,29 @@ def show_tat_navigator_page(data_loader, db_path):
                                                 processed_count = 0
                                                 error_count = 0
                                                 
+                                                # Trade-Eröffnungszeit ermitteln für Filterung
+                                                trade_open_datetime = None
+                                                trade_open_time_str = selected_trade.get('🕐 Eröffnung', '')
+                                                
+                                                if trade_open_time_str and isinstance(trade_open_time_str, str) and ':' in trade_open_time_str:
+                                                    try:
+                                                        # Trade-Eröffnungszeit zu datetime konvertieren
+                                                        trade_date_obj = selected_trade[date_cols[0]]
+                                                        if hasattr(trade_date_obj, 'date'):
+                                                            trade_date_only = trade_date_obj.date()
+                                                        else:
+                                                            trade_date_only = datetime.datetime.now().date()
+                                                        
+                                                        trade_open_datetime = datetime.datetime.combine(
+                                                            trade_date_only, 
+                                                            datetime.datetime.strptime(trade_open_time_str, '%H:%M:%S').time()
+                                                        )
+                                                        
+                                                        st.info(f"🎯 **Chart startet ab Trade-Eröffnung:** {trade_open_time_str}")
+                                                    except Exception as time_error:
+                                                        st.warning(f"⚠️ Konnte Eröffnungszeit nicht parsen: {time_error}")
+                                                        trade_open_datetime = None
+                                                
                                                 for i, data_point in enumerate(api_response):
                                                     if isinstance(data_point, dict):
                                                         # Verschiedene mögliche Feldnamen prüfen
@@ -1398,12 +1433,30 @@ def show_tat_navigator_page(data_loader, db_path):
                                                                         data_datetime_bern = data_datetime_utc + datetime.timedelta(hours=2)
                                                                     else:
                                                                         data_datetime_bern = data_datetime_utc + datetime.timedelta(hours=1)
+                                                                    
+                                                                    # FILTER: Nur Datenpunkte nach der Trade-Eröffnung
+                                                                    if trade_open_datetime is not None:
+                                                                        if data_datetime_bern < trade_open_datetime:
+                                                                            continue  # Überspringe Datenpunkte vor der Eröffnung
+                                                                    
                                                                     time_formatted = data_datetime_bern.strftime('%H:%M:%S')
                                                                 elif isinstance(time_str, str):
                                                                     # String-Zeitstempel direkt verwenden
                                                                     time_formatted = time_str
-                                                                else:
-                                                                    time_formatted = str(time_str)
+                                                                    
+                                                                    # Bei String-Zeitstempeln: Prüfe ob nach Eröffnungszeit
+                                                                    if trade_open_datetime is not None:
+                                                                        try:
+                                                                            # Versuche String-Zeit zu parsen
+                                                                            if ':' in time_str and len(time_str) >= 5:
+                                                                                time_part = time_str.split(' ')[-1] if ' ' in time_str else time_str
+                                                                                if len(time_part) >= 5:  # HH:MM oder HH:MM:SS
+                                                                                    parsed_time = datetime.datetime.strptime(time_part, '%H:%M:%S' if ':' in time_part[2:] else '%H:%M').time()
+                                                                                    data_time_combined = datetime.datetime.combine(trade_open_datetime.date(), parsed_time)
+                                                                                    if data_time_combined < trade_open_datetime:
+                                                                                        continue  # Überspringe Datenpunkte vor der Eröffnung
+                                                                        except:
+                                                                            pass  # Bei Parse-Fehlern trotzdem anzeigen
                                                                 
                                                                 # Preis konvertieren
                                                                 if isinstance(price, (int, float)):
@@ -1428,18 +1481,19 @@ def show_tat_navigator_page(data_loader, db_path):
                                                             if i < 3:
                                                                 st.warning(f"⚠️ Debug: Punkt {i} hat fehlende Zeit oder Preis-Daten")
                                                 
-                                                st.info(f"📊 Debug: {processed_count} Datenpunkte verarbeitet, {error_count} Fehler")
+                                                st.info(f"📊 Debug: {processed_count} Datenpunkte verarbeitet (ab Eröffnung), {error_count} Fehler")
                                                 
                                                 if chart_data:
                                                     # DataFrame für Chart erstellen
                                                     chart_df = pd.DataFrame(chart_data)
                                                     
+                                                    # Zusätzliche Info über gefilterte Daten
+                                                    if trade_open_datetime is not None:
+                                                        st.success(f"✅ **Chart zeigt nur Daten ab Trade-Eröffnung:** {trade_open_time_str}")
+                                                        st.info(f"📊 **Gefilterte Datenpunkte:** {len(chart_data)} von ursprünglich {len(api_response)}")
+                                                    
                                                     # Absolutwerte für Short-Optionen (immer positiv anzeigen)
                                                     chart_df['Optionspreis_Abs'] = chart_df['Optionspreis'].abs()
-                                                    
-                                                    # Chart mit Plotly erstellen - SCHÖNER DESIGN! 🎨
-                                                    import plotly.express as px
-                                                    import plotly.graph_objects as go
                                                     
                                                     # Farbe basierend auf Preisentwicklung (mit Absolutwerten)
                                                     first_price = chart_df['Optionspreis_Abs'].iloc[0]
@@ -1490,6 +1544,50 @@ def show_tat_navigator_page(data_loader, db_path):
                                                         text=['🚀 Start', f'{trend_emoji} Ende'],
                                                         showlegend=False
                                                     ))
+                                                    
+                                                    # Stoppreis als horizontale Linie hinzufügen
+                                                    stop_price = selected_trade.get('🎯 Stop/Target')
+                                                    if stop_price and pd.notna(stop_price) and stop_price != '' and stop_price != 'N/A':
+                                                        try:
+                                                            # Stoppreis zu numerischem Wert konvertieren
+                                                            if isinstance(stop_price, str):
+                                                                stop_price_clean = str(stop_price).strip().replace(',', '.').replace('$', '').replace(' ', '')
+                                                                stop_price_numeric = float(stop_price_clean)
+                                                            else:
+                                                                stop_price_numeric = float(stop_price)
+                                                            
+                                                            # Horizontale Linie für Stoppreis
+                                                            fig.add_hline(
+                                                                y=stop_price_numeric,
+                                                                line_dash="dash",
+                                                                line_color="#ff6b35",
+                                                                line_width=3,
+                                                                annotation_text=f"🎯 Stoppreis: ${stop_price_numeric:.3f}",
+                                                                annotation_position="top right",
+                                                                annotation=dict(
+                                                                    font=dict(size=14, color="#ff6b35"),
+                                                                    bgcolor="rgba(255, 107, 53, 0.1)",
+                                                                    bordercolor="#ff6b35",
+                                                                    borderwidth=1
+                                                                )
+                                                            )
+                                                            
+                                                            # Stoppreis-Marker auf der Linie
+                                                            fig.add_trace(go.Scatter(
+                                                                x=[chart_df['Zeit'].iloc[0], chart_df['Zeit'].iloc[-1]],
+                                                                y=[stop_price_numeric, stop_price_numeric],
+                                                                mode='lines',
+                                                                name='🎯 Stoppreis',
+                                                                line=dict(color='#ff6b35', width=3, dash='dash'),
+                                                                showlegend=True,
+                                                                hovertemplate='<b>🎯 Stoppreis:</b> $%{y:.3f}<extra></extra>'
+                                                            ))
+                                                            
+                                                            # Stoppreis-Info in den Statistiken anzeigen
+                                                            st.info(f"🎯 **Stoppreis eingezeichnet:** ${stop_price_numeric:.3f} (gestrichelte orange Linie)")
+                                                            
+                                                        except (ValueError, TypeError) as stop_error:
+                                                            st.warning(f"⚠️ Konnte Stoppreis '{stop_price}' nicht als horizontale Linie einzeichnen: {stop_error}")
                                                     
                                                     # Modernes, professionelles Layout
                                                     fig.update_layout(
@@ -1583,6 +1681,42 @@ def show_tat_navigator_page(data_loader, db_path):
                                                     with col4:
                                                         st.metric("🔢 Datenpunkte", f"{len(chart_data):,}")
                                                     
+                                                    # Dritte Reihe: Stoppreis und zusätzliche Metriken
+                                                    if stop_price and pd.notna(stop_price) and stop_price != '' and stop_price != 'N/A':
+                                                        try:
+                                                            if isinstance(stop_price, str):
+                                                                stop_price_clean = str(stop_price).strip().replace(',', '.').replace('$', '').replace(' ', '')
+                                                                stop_price_numeric = float(stop_price_clean)
+                                                            else:
+                                                                stop_price_numeric = float(stop_price)
+                                                            
+                                                            col1, col2, col3, col4 = st.columns(4)
+                                                            
+                                                            with col1:
+                                                                st.metric("🎯 Stoppreis", f"${stop_price_numeric:.3f}")
+                                                            
+                                                            with col2:
+                                                                # Abstand zum Stoppreis (letzter Preis - Stoppreis)
+                                                                distance_to_stop = last_price - stop_price_numeric
+                                                                st.metric("📏 Abstand zu Stopp", f"${distance_to_stop:.3f}")
+                                                            
+                                                            with col3:
+                                                                # Prozentualer Abstand zum Stoppreis
+                                                                if stop_price_numeric != 0:
+                                                                    pct_to_stop = (distance_to_stop / stop_price_numeric) * 100
+                                                                    st.metric("📊 % zu Stopp", f"{pct_to_stop:.1f}%")
+                                                                else:
+                                                                    st.metric("📊 % zu Stopp", "N/A")
+                                                            
+                                                            with col4:
+                                                                # Stoppreis-Status (wurde der Stopp erreicht?)
+                                                                if min_price <= stop_price_numeric:
+                                                                    st.metric("🚨 Stopp erreicht", "Ja", delta_color="inverse")
+                                                                else:
+                                                                    st.metric("✅ Stopp nicht erreicht", "Nein", delta_color="normal")
+                                                        except (ValueError, TypeError):
+                                                            pass
+                                                    
                                                     # Zusätzliche Info-Box
                                                     with st.expander("ℹ️ Chart-Informationen", expanded=False):
                                                         col1, col2 = st.columns(2)
@@ -1599,7 +1733,19 @@ def show_tat_navigator_page(data_loader, db_path):
                                                             rel_change = (price_range / avg_price * 100) if avg_price != 0 else 0
                                                             st.write(f"• Relative Spanne: `{rel_change:.1f}%`")
                                                             st.write(f"• Zeitzone: `Bern (CEST/CET)`")
-                                                    
+                                                            
+                                                            # Stoppreis-Info hinzufügen
+                                                            if stop_price and pd.notna(stop_price) and stop_price != '' and stop_price != 'N/A':
+                                                                try:
+                                                                    if isinstance(stop_price, str):
+                                                                        stop_price_clean = str(stop_price).strip().replace(',', '.').replace('$', '').replace(' ', '')
+                                                                        stop_price_numeric = float(stop_price_clean)
+                                                                    else:
+                                                                        stop_price_numeric = float(stop_price)
+                                                                    st.write(f"• Stoppreis: `${stop_price_numeric:.3f}`")
+                                                                except (ValueError, TypeError):
+                                                                    st.write(f"• Stoppreis: `{stop_price}`")
+                                                
                                                 else:
                                                     st.warning("⚠️ Keine gültigen Chart-Daten verfügbar")
                                             else:
