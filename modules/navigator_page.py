@@ -1370,11 +1370,6 @@ def show_tat_navigator_page(data_loader, db_path):
                                             api_response = get_option_price_data(asset, date, option_type, strike)
                                             
                                             if api_response and isinstance(api_response, list) and len(api_response) > 0:
-                                                # Debug: API-Response anzeigen
-                                                st.info(f"🔍 Debug: API-Response hat {len(api_response)} Einträge")
-                                                if len(api_response) > 0:
-                                                    st.info(f"🔍 Debug: Erstes Element: {str(api_response[0])[:200]}...")
-                                                
                                                 # Chart erstellen
                                                 chart_data = []
                                                 processed_count = 0
@@ -1398,7 +1393,7 @@ def show_tat_navigator_page(data_loader, db_path):
                                                             datetime.datetime.strptime(trade_open_time_str, '%H:%M:%S').time()
                                                         )
                                                         
-                                                        st.info(f"🎯 **Chart startet ab Trade-Eröffnung:** {trade_open_time_str}")
+                                                        # Debug-Info entfernt
                                                     except Exception as time_error:
                                                         st.warning(f"⚠️ Konnte Eröffnungszeit nicht parsen: {time_error}")
                                                         trade_open_datetime = None
@@ -1418,10 +1413,6 @@ def show_tat_navigator_page(data_loader, db_path):
                                                                 data_point.get('c') or 
                                                                 data_point.get('p') or 
                                                                 data_point.get('last'))
-                                                        
-                                                        # Debug: Erste 3 Datenpunkte detailliert anzeigen
-                                                        if i < 3:
-                                                            st.info(f"🔍 Debug Punkt {i}: Zeit={time_str}, Preis={price}, Keys={list(data_point.keys())}")
                                                         
                                                         if time_str and price:
                                                             try:
@@ -1481,7 +1472,7 @@ def show_tat_navigator_page(data_loader, db_path):
                                                             if i < 3:
                                                                 st.warning(f"⚠️ Debug: Punkt {i} hat fehlende Zeit oder Preis-Daten")
                                                 
-                                                st.info(f"📊 Debug: {processed_count} Datenpunkte verarbeitet (ab Eröffnung), {error_count} Fehler")
+                                                # Debug-Info entfernt
                                                 
                                                 if chart_data:
                                                     # DataFrame für Chart erstellen
@@ -1489,8 +1480,8 @@ def show_tat_navigator_page(data_loader, db_path):
                                                     
                                                     # Zusätzliche Info über gefilterte Daten
                                                     if trade_open_datetime is not None:
-                                                        st.success(f"✅ **Chart zeigt nur Daten ab Trade-Eröffnung:** {trade_open_time_str}")
-                                                        st.info(f"📊 **Gefilterte Datenpunkte:** {len(chart_data)} von ursprünglich {len(api_response)}")
+                                                        # Debug-Infos entfernt
+                                                        pass
                                                     
                                                     # Absolutwerte für Short-Optionen (immer positiv anzeigen)
                                                     chart_df['Optionspreis_Abs'] = chart_df['Optionspreis'].abs()
@@ -1584,7 +1575,7 @@ def show_tat_navigator_page(data_loader, db_path):
                                                             ))
                                                             
                                                             # Stoppreis-Info in den Statistiken anzeigen
-                                                            st.info(f"🎯 **Stoppreis eingezeichnet:** ${stop_price_numeric:.3f} (gestrichelte orange Linie)")
+                                                            # Debug-Info entfernt
                                                             
                                                         except (ValueError, TypeError) as stop_error:
                                                             st.warning(f"⚠️ Konnte Stoppreis '{stop_price}' nicht als horizontale Linie einzeichnen: {stop_error}")
