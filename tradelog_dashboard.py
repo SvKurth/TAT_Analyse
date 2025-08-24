@@ -522,7 +522,7 @@ def show_page(page, data_loader, db_path):
             """, unsafe_allow_html=True)
         
         # Zweite Reihe
-        col1, col2, col3, col4 = st.columns(4)
+        col1, col2, col3, col4, col5 = st.columns(5)
         
         with col1:
             # Leere Spalte für bessere Ausrichtung
@@ -549,6 +549,50 @@ def show_page(page, data_loader, db_path):
                 </div>
                 <div class="metric-value negative">{max_drawdown:.1f}%</div>
                 <div class="metric-description">Peak: ${peak_value:,.2f}</div>
+            </div>
+            """, unsafe_allow_html=True)
+        
+        with col4:
+            # Durchschnittlicher Gewinner
+            if profit_cols:
+                winning_trades = trade_data[trade_data[profit_col] > 0]
+                if len(winning_trades) > 0:
+                    avg_winner = winning_trades[profit_col].mean()
+                else:
+                    avg_winner = 0
+            else:
+                avg_winner = 0
+            
+            st.markdown(f"""
+            <div class="metric-tile">
+                <div class="metric-header">
+                    <div class="metric-icon">🟢</div>
+                    <div class="metric-title">AVG WINNER</div>
+                </div>
+                <div class="metric-value positive">${avg_winner:.2f}</div>
+                <div class="metric-description">Durchschnittlicher Gewinner</div>
+            </div>
+            """, unsafe_allow_html=True)
+        
+        with col5:
+            # Durchschnittlicher Verlierer
+            if profit_cols:
+                losing_trades = trade_data[trade_data[profit_col] < 0]
+                if len(losing_trades) > 0:
+                    avg_loser = losing_trades[profit_col].mean()
+                else:
+                    avg_loser = 0
+            else:
+                avg_loser = 0
+            
+            st.markdown(f"""
+            <div class="metric-tile">
+                <div class="metric-header">
+                    <div class="metric-icon">🔴</div>
+                    <div class="metric-title">AVG LOSER</div>
+                </div>
+                <div class="metric-value negative">${avg_loser:.2f}</div>
+                <div class="metric-description">Durchschnittlicher Verlierer</div>
             </div>
             """, unsafe_allow_html=True)
         
