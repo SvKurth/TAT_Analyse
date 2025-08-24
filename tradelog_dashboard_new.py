@@ -4,6 +4,11 @@ Tradelog Dashboard - Modulare Version
 Hauptdatei mit sauberer Struktur und ausgelagerten Modulen
 """
 
+import os
+# Streamlit-Startmeldungen ausblenden
+os.environ['STREAMLIT_SERVER_HEADLESS'] = 'true'
+os.environ['STREAMLIT_BROWSER_GATHER_USAGE_STATS'] = 'false'
+
 import streamlit as st
 import pandas as pd
 from pathlib import Path
@@ -44,6 +49,9 @@ st.set_page_config(
     page_icon="📊",
     layout="wide"
 )
+
+# Weitere Startmeldungen unterdrücken
+# st.set_option('deprecation.showPyplotGlobalUse', False)  # Nicht unterstützt in dieser Streamlit-Version
 
 def main():
     """Hauptfunktion des Dashboards."""

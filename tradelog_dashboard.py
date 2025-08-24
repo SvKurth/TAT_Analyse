@@ -350,6 +350,58 @@ def show_page(page, data_loader, db_path):
             max_drawdown = drawdown.min()
             peak_value = running_max.max()
             
+            # Datumsinformationen für Peak und Max Drawdown
+            if date_cols:
+                date_col = date_cols[0]
+                # Finde das Datum des Peaks
+                peak_idx = cumulative.idxmax()
+                peak_date = trade_data.loc[peak_idx, date_col].strftime('%d.%m.%Y') if pd.notna(peak_idx) else "N/A"
+                
+                # Finde das Datum des Max Drawdowns
+                max_dd_idx = drawdown.idxmin()
+                max_dd_date = trade_data.loc[max_dd_idx, date_col].strftime('%d.%m.%Y') if pd.notna(max_dd_idx) else "N/A"
+            else:
+                peak_date = "N/A"
+                max_dd_date = "N/A"
+            
+            # Durchschnittliche Gewinner und Verlierer
+            winning_trades = trade_data[trade_data[profit_col] > 0]
+            losing_trades = trade_data[trade_data[profit_col] < 0]
+            
+            avg_winner = winning_trades[profit_col].mean() if len(winning_trades) > 0 else 0
+            avg_loser = losing_trades[profit_col].mean() if len(losing_trades) > 0 else 0
+            
+            # Durchschnittliche Tagesgewinne und -verluste
+            if date_cols:
+                date_col = date_cols[0]
+                # Datumsspalte als datetime konvertieren falls nötig
+                if trade_data[date_col].dtype == 'object':
+                    trade_data[date_col] = pd.to_datetime(trade_data[date_col], errors='coerce')
+                
+                if pd.api.types.is_datetime64_any_dtype(trade_data[date_col]):
+                    # Nach Datum gruppieren und tägliche P&L berechnen
+                    daily_pnl = trade_data.groupby(trade_data[date_col].dt.date)[profit_col].sum()
+                    
+                    # Positive und negative Tage trennen
+                    positive_days = daily_pnl[daily_pnl > 0]
+                    negative_days = daily_pnl[daily_pnl < 0]
+                    
+                    # Durchschnittliche Tagesgewinne und -verluste
+                    avg_daily_gain = positive_days.mean() if len(positive_days) > 0 else 0
+                    avg_daily_loss = negative_days.mean() if len(negative_days) > 0 else 0
+                    
+                    # Prozentuale Anteile der positiven/negativen Tage
+                    total_days = len(daily_pnl)
+                    positive_days_count = len(positive_days)
+                    negative_days_count = len(negative_days)
+                    
+                    positive_days_pct = (positive_days_count / total_days * 100) if total_days > 0 else 0
+                    negative_days_pct = (negative_days_count / total_days * 100) if total_days > 0 else 0
+                else:
+                    avg_daily_gain = avg_daily_loss = positive_days_pct = negative_days_pct = 0
+            else:
+                avg_daily_gain = avg_daily_loss = positive_days_pct = negative_days_pct = 0
+            
             # Stopouts (Status = 2)
             status_cols = [col for col in trade_data.columns if 'status' in col.lower()]
             stopouts = 0
@@ -548,7 +600,31 @@ def show_page(page, data_loader, db_path):
                     <div class="metric-title">MAX DRAWDOWN</div>
                 </div>
                 <div class="metric-value negative">{max_drawdown:.1f}%</div>
-                <div class="metric-description">Peak: ${peak_value:,.2f}</div>
+                <div class="metric-description">Peak: ${peak_value:,.2f} am {peak_date}<br>Max DD: {max_dd_date}</div>
+            </div>
+            """, unsafe_allow_html=True)
+        
+        with col4:
+            st.markdown(f"""
+            <div class="metric-tile">
+                <div class="metric-header">
+                    <div class="metric-icon">🟢</div>
+                    <div class="metric-title">AVG WINNER</div>
+                </div>
+                <div class="metric-value positive">${avg_winner:.2f}</div>
+                <div class="metric-description">Average winning trade</div>
+            </div>
+            """, unsafe_allow_html=True)
+        
+        with col5:
+            st.markdown(f"""
+            <div class="metric-tile">
+                <div class="metric-header">
+                    <div class="metric-icon">🔴</div>
+                    <div class="metric-title">AVG LOSER</div>
+                </div>
+                <div class="metric-value negative">${avg_loser:.2f}</div>
+                <div class="metric-description">Average losing trade</div>
             </div>
             """, unsafe_allow_html=True)
         
@@ -670,7 +746,7 @@ def show_page(page, data_loader, db_path):
                 </div>
                 <div class="metric-value neutral">${avg_short_price:,.2f}</div>
                 <div class="metric-description">Average short price</div>
-            </div>
+                </div>
             """, unsafe_allow_html=True)
         
         with col7:
@@ -682,6 +758,59 @@ def show_page(page, data_loader, db_path):
                 </div>
                 <div class="metric-value neutral">${max_short_price:,.2f}</div>
                 <div class="metric-description">Highest short price</div>
+            </div>
+            """, unsafe_allow_html=True)
+        
+        # 2.5. Daily Performance Metrics
+        st.subheader("📅 Daily Performance Metrics")
+        
+        col1, col2, col3, col4 = st.columns(4)
+        
+        with col1:
+            st.markdown(f"""
+            <div class="metric-tile">
+                <div class="metric-header">
+                    <div class="metric-icon">🟢</div>
+                    <div class="metric-title">AVG DAILY GAIN</div>
+                </div>
+                <div class="metric-value positive">${avg_daily_gain:,.2f}</div>
+                <div class="metric-description">Positive days: {positive_days_pct:.1f}%</div>
+            </div>
+            """, unsafe_allow_html=True)
+        
+        with col2:
+            st.markdown(f"""
+            <div class="metric-tile">
+                <div class="metric-header">
+                    <div class="metric-icon">🔴</div>
+                    <div class="metric-title">AVG DAILY LOSS</div>
+                </div>
+                <div class="metric-value negative">${avg_daily_loss:,.2f}</div>
+                <div class="metric-description">Negative days: {negative_days_pct:.1f}%</div>
+            </div>
+            """, unsafe_allow_html=True)
+        
+        with col3:
+            st.markdown(f"""
+            <div class="metric-tile">
+                <div class="metric-header">
+                    <div class="metric-icon">📊</div>
+                    <div class="metric-title">WINNING DAYS</div>
+                </div>
+                <div class="metric-value positive">{positive_days_count if 'positive_days_count' in locals() else 0}</div>
+                <div class="metric-description">Days with positive P&L</div>
+            </div>
+            """, unsafe_allow_html=True)
+        
+        with col4:
+            st.markdown(f"""
+            <div class="metric-tile">
+                <div class="metric-header">
+                    <div class="metric-icon">📉</div>
+                    <div class="metric-title">LOSING DAYS</div>
+                </div>
+                <div class="metric-value negative">{negative_days_count if 'negative_days_count' in locals() else 0}</div>
+                <div class="metric-description">Days with negative P&L</div>
             </div>
             """, unsafe_allow_html=True)
         
