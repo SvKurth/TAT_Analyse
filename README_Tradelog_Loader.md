@@ -2,151 +2,253 @@
 
 ## Übersicht
 
-Der erweiterte DataLoader ermöglicht es Ihnen, SQLite-Tradelogdateien einfach zu laden und zu verarbeiten. Er erkennt automatisch die Tabellenstruktur und formatiert die Daten in ein einheitliches Format.
+Der erweiterte DataLoader ermöglicht es Ihnen, SQLite-Tradelogdateien einfach zu laden und zu verarbeiten. Er erkennt automatisch die Tabellenstruktur und formatiert die Daten in ein einheitliches Format. Der DataLoader ist vollständig in das neue Dashboard integriert.
 
-## Neue Funktionen
+## 🆕 Neue Funktionen
 
-### 1. `load_tradelog_sqlite(db_path, table_name=None)`
-- Lädt Tradelog-Daten aus einer SQLite-Datenbank
-- Erkennt automatisch die richtige Tabelle (falls mehrere vorhanden)
-- Formatiert die Daten automatisch
+### 1. **Automatische Spaltenerkennung**
+- **Datumsspalten**: Erkennt automatisch Spalten wie "DateOpened", "DateClosed", "date", "datum", "time", "zeit", "timestamp"
+- **Numerische Spalten**: Erkennt automatisch Spalten wie "price", "preis", "amount", "betrag", "quantity", "menge", "profit", "pnl", "gewinn"
+- **Trading-spezifische Spalten**: Erkennt automatisch "type", "typ", "strategy", "strategie"
 
-### 2. `get_sqlite_table_info(db_path)`
-- Analysiert die Struktur der SQLite-Datenbank
-- Zeigt alle verfügbaren Tabellen und deren Spalten
-- Gibt Beispieldaten zurück
+### 2. **Intelligente Tabellenerkennung**
+- **Trade-Tabelle Priorität**: Wählt automatisch die "Trade" oder "trade" Tabelle aus
+- **Fallback-Mechanismus**: Falls keine Trade-Tabelle gefunden wird, werden alle verfügbaren Tabellen angezeigt
+- **Strukturelle Analyse**: Zeigt detaillierte Informationen über alle Tabellen und deren Spalten
 
-### 3. `_format_tradelog_data(data)`
-- Standardisiert Spaltennamen
-- Konvertiert Datums- und numerische Spalten
-- Behandelt fehlende Werte
-- Entfernt Duplikate
+### 3. **Automatische Datenformatierung**
+- **Spaltennamen standardisiert** (kleinbuchstaben, Unterstriche)
+- **Datumsformat konvertiert** (pandas datetime)
+- **Numerische Werte konvertiert** (float/int)
+- **Index auf Datum gesetzt** (falls verfügbar)
+- **Duplikate entfernt**
+- **Fehlende Werte behandelt**
 
-## Verwendung
+### 4. **.NET-Timestamp Konvertierung**
+- **Automatische Konvertierung** von .NET-Timestamps zu lesbaren Datumsformaten
+- **DateOpened/DateClosed**: Spezielle Behandlung von Trading-spezifischen Datumsspalten
+- **Fallback-Datumskonvertierung** bei Problemen
 
-### Schritt 1: Pfad anpassen
-Öffnen Sie `example_tradelog_loader.py` und passen Sie den Pfad zu Ihrer SQLite-Datei an:
+## 🚀 Verwendung
 
-```python
-tradelog_db_path = "C:/Users/IhrName/Path/To/Your/tradelog.db"
-```
-
-### Schritt 2: Skript ausführen
+### **Über das Dashboard (Empfohlen)**
 ```bash
-python example_tradelog_loader.py
+# 1. Dashboard starten
+streamlit run tradelog_dashboard.py
+
+# 2. SQLite-Datei hochladen oder Pfad eingeben
+# 3. Automatische Erkennung und Verarbeitung
 ```
 
-### Schritt 3: Ergebnisse prüfen
-Das Skript erstellt:
-- `output/tradelog_data.csv` - CSV-Export
-- `output/tradelog_data.xlsx` - Excel-Export
-- Detaillierte Konsolenausgabe mit Datenbankstruktur
+### **Programmatische Verwendung**
+```python
+from app.services.data_processing_service import DataProcessingService
+from app.services.database_service import DatabaseService
 
-## Konfiguration
+# DataLoader initialisieren
+data_service = DataProcessingService()
+db_service = DatabaseService()
 
-Die Datei `config/tradelog_config.ini` enthält spezielle Einstellungen für Tradelog-Daten:
+# Datenbank laden
+db_path = "path/to/your/tradelog.db"
+trade_data = data_service.load_trade_table(db_path)
 
-```ini
-[tradelog]
-database_path = data/tradelog.db
-default_table = 
-date_format = %Y-%m-%d %H:%M:%S
-
-[data_processing]
-fill_numeric_na = 0
-fill_text_na = Unbekannt
-remove_duplicates = true
-set_date_index = true
+# Datenbankstruktur analysieren
+db_info = db_service.get_database_info(db_path)
 ```
 
-## Automatische Erkennung
+## 📊 Dashboard-Integration
+
+Der DataLoader ist vollständig in das neue Dashboard integriert und bietet folgende Funktionen:
+
+### **📋 Übersicht-Seite**
+- Automatische Erkennung der Datenbankstruktur
+- Primärschlüssel-Identifikation
+- Optimierte Spaltenreihenfolge
+
+### **📈 Trade-Tabelle-Seite**
+- Vollständige Übersicht aller Trade-Daten
+- Intelligente Filter und Sortierung
+- Paginierung für große Datensätze
+- Export in verschiedenen Formaten
+
+### **📊 Trade-Metriken-Seite**
+- Umfassende Trading-Statistiken
+- Intelligente Spaltenerkennung
+- Datums- und Strategie-Filter
+- Export gefilterter Daten
+
+### **📅 Kalender-Seite**
+- Tagesweise Gewinnübersicht
+- Monatsnavigation
+- Wochensummen
+- Monatsstatistiken
+
+## ⚙️ Konfiguration
+
+Das Dashboard verwendet eine moderne YAML-basierte Konfiguration:
+
+```yaml
+# config/default.yaml
+database:
+  default_path: "data/"
+  supported_extensions: [".db", ".db3", ".sqlite", ".sqlite3"]
+
+data_processing:
+  auto_detect_columns: true
+  convert_dates: true
+  handle_missing_values: true
+  remove_duplicates: true
+
+trading:
+  auto_detect_trade_table: true
+  priority_tables: ["Trade", "trade", "Trades", "trades"]
+  date_columns: ["DateOpened", "DateClosed", "date", "datum"]
+  profit_columns: ["Profit", "profit", "PnL", "pnl", "Gewinn", "gewinn"]
+```
+
+## 🔍 Automatische Erkennung
 
 Der DataLoader erkennt automatisch:
 
-- **Datumsspalten**: Enthalten Wörter wie "date", "datum", "time", "zeit", "timestamp"
-- **Numerische Spalten**: Enthalten Wörter wie "price", "preis", "amount", "betrag", "quantity", "menge"
-- **Haupttabelle**: Wählt die Tabelle mit den meisten Zeilen aus
+### **Trading-spezifische Spalten:**
+- **Datumsspalten**: Enthalten Wörter wie "date", "datum", "time", "zeit", "timestamp", "opened", "closed"
+- **Numerische Spalten**: Enthalten Wörter wie "price", "preis", "amount", "betrag", "quantity", "menge", "profit", "pnl", "gewinn"
+- **Trading-Spalten**: Enthalten Wörter wie "type", "typ", "strategy", "strategie", "symbol", "instrument"
 
-## Datenformatierung
+### **Haupttabelle:**
+- **Priorität**: "Trade" oder "trade" Tabellen werden bevorzugt
+- **Fallback**: Falls keine Trade-Tabelle gefunden wird, werden alle verfügbaren Tabellen angezeigt
+- **Intelligente Auswahl**: Wählt die Tabelle mit den meisten relevanten Spalten aus
 
-Die geladenen Daten werden automatisch:
-
-1. **Spaltennamen standardisiert** (kleinbuchstaben, Unterstriche)
-2. **Datumsformat konvertiert** (pandas datetime)
-3. **Numerische Werte konvertiert** (float/int)
-4. **Index auf Datum gesetzt** (falls verfügbar)
-5. **Duplikate entfernt**
-6. **Fehlende Werte behandelt**
-
-## Beispiel-Ausgabe
+## 📊 Beispiel-Ausgabe
 
 ```
 === DATENBANKSTRUKTUR ===
 Datenbank: C:/Path/To/tradelog.db
 Anzahl Tabellen: 1
 
-Tabelle: trades
+Tabelle: Trade
   Zeilen: 1250
   Spalten: 8
+  Primärschlüssel: id
   Spaltenstruktur:
-    - date: TEXT
-    - symbol: TEXT
-    - type: TEXT
-    - quantity: INTEGER
-    - price: REAL
-    - commission: REAL
-    - notes: TEXT
-    - timestamp: TEXT
+    - id: INTEGER (PRIMARY KEY)
+    - DateOpened: TEXT (-> konvertiert zu datetime)
+    - DateClosed: TEXT (-> konvertiert zu datetime)
+    - Symbol: TEXT
+    - Type: TEXT
+    - Quantity: INTEGER
+    - Price: REAL
+    - Profit: REAL
 
 === GELADENE DATEN ===
 Anzahl Zeilen: 1250
 Anzahl Spalten: 8
-Spalten: ['date', 'symbol', 'type', 'quantity', 'price', 'commission', 'notes', 'timestamp']
+Spalten: ['id', 'DateOpened', 'DateClosed', 'Symbol', 'Type', 'Quantity', 'Price', 'Profit']
+Datumsspalten erkannt: ['DateOpened', 'DateClosed']
+Profit-Spalten erkannt: ['Profit']
 ```
 
-## Fehlerbehebung
+## 🚨 Fehlerbehebung
 
-### Häufige Probleme:
+### **Häufige Probleme:**
 
-1. **Datei nicht gefunden**: Überprüfen Sie den Pfad in `tradelog_db_path`
-2. **Keine Tabellen**: Stellen Sie sicher, dass es sich um eine gültige SQLite-Datei handelt
-3. **Berechtigungen**: Stellen Sie sicher, dass Sie Lesezugriff auf die Datei haben
+1. **Datei nicht gefunden**
+   - Überprüfen Sie den Dateipfad
+   - Stellen Sie sicher, dass die Datei existiert
 
-### Logs prüfen:
-Alle Aktivitäten werden in `logs/tradelog_loader.log` protokolliert.
+2. **Keine Tabellen gefunden**
+   - Stellen Sie sicher, dass es sich um eine gültige SQLite-Datei handelt
+   - Überprüfen Sie die Datei mit einem SQLite-Browser
 
-## Erweiterte Verwendung
+3. **Berechtigungen**
+   - Stellen Sie sicher, dass Sie Lesezugriff auf die Datei haben
+   - Überprüfen Sie die Windows-Berechtigungen
 
-### Spezifische Tabelle laden:
+4. **Datumsspalten werden nicht erkannt**
+   - Überprüfen Sie die Spaltennamen
+   - Stellen Sie sicher, dass die Spalten Datumsdaten enthalten
+
+### **Logs prüfen:**
+Alle Aktivitäten werden in der Streamlit-Konsole protokolliert.
+
+## 🔧 Erweiterte Verwendung
+
+### **Spezifische Tabelle laden:**
 ```python
 # Bestimmte Tabelle laden
-data = data_loader.load_tradelog_sqlite(db_path, table_name="specific_table")
+data = data_service.load_specific_table(db_path, table_name="specific_table")
 ```
 
-### Nur Datenbankstruktur analysieren:
+### **Nur Datenbankstruktur analysieren:**
 ```python
 # Nur Struktur analysieren, keine Daten laden
-db_info = data_loader.get_sqlite_table_info(db_path)
+db_info = db_service.get_database_info(db_path)
 ```
 
-### Daten in verschiedenen Formaten speichern:
+### **Daten in verschiedenen Formaten speichern:**
 ```python
-# Als Parquet speichern
-data_loader.save_data(data, "output/data.parquet", "parquet")
+# Als CSV speichern
+data_service.export_data(data, "output/data.csv", "csv")
+
+# Als Excel speichern
+data_service.export_data(data, "output/data.xlsx", "excel")
 ```
 
-## Nächste Schritte
+## 📁 Aktuelle Projektstruktur
+
+```
+TAT_Analyse/
+├── app/                           # Core-Services
+│   ├── services/
+│   │   ├── data_processing_service.py  # Erweiterter DataLoader
+│   │   ├── database_service.py         # Datenbankoperationen
+│   │   └── trade_data_service.py       # Trading-spezifische Funktionen
+│   └── core/
+│       ├── config_service.py           # Konfigurationsverwaltung
+│       └── logging_service.py          # Logging
+├── modules/                        # Dashboard-Seiten
+│   ├── overview_page.py              # Übersicht
+│   ├── data_analysis_page.py         # Datenanalyse
+│   ├── visualization_page.py         # Visualisierungen
+│   ├── export_page.py                # Export
+│   ├── settings_page.py              # Einstellungen
+│   ├── trade_table_page.py           # Trade-Tabelle
+│   ├── metrics_page.py               # Trade-Metriken
+│   └── calendar_page.py              # Kalender
+├── config/                          # Konfigurationsdateien
+│   └── default.yaml                 # Hauptkonfiguration
+├── tradelog_dashboard.py            # Hauptdashboard
+├── requirements.txt                 # Abhängigkeiten
+└── README.md                        # Hauptdokumentation
+```
+
+## 🎯 Nächste Schritte
 
 Nach dem erfolgreichen Laden der Daten können Sie:
 
-1. **Analyse durchführen**: Verwenden Sie den `TradeAnalyzer`
-2. **Visualisierungen erstellen**: Nutzen Sie den `ChartGenerator`
+1. **Dashboard verwenden**: Nutzen Sie alle 7 Hauptseiten für umfassende Analysen
+2. **Trade-Daten analysieren**: Verwenden Sie die spezialisierten Trading-Seiten
 3. **Daten exportieren**: Speichern Sie in verschiedenen Formaten
 4. **Weitere Verarbeitung**: Integrieren Sie die Daten in Ihr Trading-System
 
-## Support
+## 🔗 Integration
+
+Der DataLoader ist vollständig in das Dashboard integriert und kann:
+
+- **Automatisch** beim Hochladen von SQLite-Dateien verwendet werden
+- **Programmatisch** über die Service-Klassen aufgerufen werden
+- **Erweitert** werden für spezifische Anforderungen
+
+## 📞 Support
 
 Bei Fragen oder Problemen:
-1. Überprüfen Sie die Logs in `logs/tradelog_loader.log`
+1. Überprüfen Sie die Streamlit-Konsole auf Fehlermeldungen
 2. Stellen Sie sicher, dass alle Abhängigkeiten installiert sind
 3. Überprüfen Sie die SQLite-Datei mit einem SQLite-Browser
+4. Siehe auch: [TROUBLESHOOTING.md](TROUBLESHOOTING.md)
+
+---
+
+**Viel Erfolg bei der Analyse Ihrer Trading-Daten! 🎯📊**

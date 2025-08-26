@@ -6,41 +6,76 @@ Das Tradelog Dashboard ist eine interaktive Web-Anwendung, die es Ihnen ermögli
 
 ## 🚀 Features
 
-### 📋 Übersicht
+### 🧭 **Neue Seitenstruktur (keine Tabs mehr)**
+Das Dashboard verwendet jetzt eine moderne Seitenstruktur mit 7 Hauptseiten, die über die linke Sidebar ausgewählt werden können:
+
+### 📋 **📋 Übersicht**
 - **Datenbankstruktur**: Zeigt alle Tabellen und deren Spalten
 - **Metriken**: Anzahl Zeilen, Spalten, Tabellen auf einen Blick
 - **Datenvorschau**: Interaktive Tabellen mit anpassbarer Zeilenanzahl
 - **Spaltenfilter**: Wählen Sie aus, welche Spalten angezeigt werden sollen
+- **Primärschlüssel-Identifikation**: Automatische Erkennung und Anzeige der Primärschlüssel-Spalten
 
-### 📊 Datenanalyse
+### 📊 **📊 Datenanalyse**
 - **Statistiken**: Detaillierte Beschreibung numerischer Spalten
 - **Kategorische Daten**: Analyse eindeutiger Werte und Verteilungen
 - **Fehlende Werte**: Visualisierung und Quantifizierung fehlender Daten
 - **Duplikate**: Erkennung und Anzeige doppelter Einträge
 
-### 📈 Visualisierungen
+### 📈 **📈 Visualisierungen**
 - **Histogramme**: Verteilungen numerischer Spalten
 - **Boxplots**: Ausreißer und Verteilungen identifizieren
 - **Zeitreihen**: Daten über Zeit visualisieren (falls Datumsspalten vorhanden)
 - **Korrelationsmatrix**: Zusammenhänge zwischen numerischen Spalten
 - **Verteilungsplots**: Mehrere Spalten gleichzeitig analysieren
 
-### 💾 Export & Migration
+### 💾 **💾 Export & Migration**
 - **Mehrere Formate**: CSV, Excel, Parquet, JSON
 - **Spaltenauswahl**: Wählen Sie aus, welche Daten exportiert werden sollen
 - **Batch-Export**: Alle Formate gleichzeitig exportieren
 - **Download-Funktion**: Direkter Download der exportierten Dateien
 
-### 🔧 Einstellungen
+### 🔧 **🔧 Einstellungen**
 - **Datenbankdetails**: Pfad, Größe, Erstellungsdatum
 - **Datenqualität**: Score basierend auf fehlenden Werten
 - **Datentypen**: Übersicht über alle Spaltentypen
 - **Speicherverbrauch**: Analyse des Speicherverbrauchs pro Spalte
 
+### 📈 **📈 Trade-Tabelle**
+- **Vollständige Übersicht**: Alle Trade-Daten in einer übersichtlichen Tabelle
+- **Intelligente Filter**: Nach Spalten, Datum und Werten filtern
+- **Sortierung**: Nach beliebigen Spalten sortieren (aufsteigend/absteigend)
+- **Paginierung**: Große Datensätze seitenweise durchblättern
+- **Spaltenauswahl**: Nur relevante Spalten anzeigen
+- **Export**: Gefilterte Daten in verschiedenen Formaten exportieren
+- **Primärschlüssel-Identifikation**: Automatische Erkennung und Anzeige der Primärschlüssel-Spalten
+
+### 📊 **📊 Trade-Metriken**
+- **Kachelbasierte Darstellung** wichtiger Trading-Statistiken
+- **🔍 Umfassende Filter-Funktionen**:
+  - **📅 Datumsfilter**: Immer DateOpened Spalte (automatische Erkennung)
+  - **🎯 Trade Type Filter**: Nach spezifischen Trade Types filtern
+  - **🎯 Strategy Filter**: Nach verwendeten Strategies filtern
+- **Intelligente Spaltenerkennung** (Profit, Preis, DateOpened, Trade Type, Strategy, etc.)
+- **Umfassende Trading-Statistiken** (Gewinnrate, Durchschnittsprofit, etc.)
+- **Zeitbasierte Metriken** (Trading-Tage, Trades pro Tag) basierend auf DateOpened und gefilterten Daten
+- **Datenqualitätsbewertung** für gefilterte Daten
+- **💾 Export gefilterter Daten** als CSV
+- **Filter-Zusammenfassung** mit Effekt-Anzeige
+
+### 📅 **📅 Kalender**
+- **Tagesgewinn pro Tag**: Übersichtliche Kalenderansicht
+- **Monatsnavigation**: Einfache Navigation zwischen Monaten
+- **Wochensummen**: Automatische Berechnung der Wochengewinne
+- **Monatsstatistiken**: Positive/negative Tage, Durchschnittswerte
+- **Strategie-Filter**: Nach spezifischen Trading-Strategien filtern
+- **Wöchentliche Zusammenfassung**: Samstags-Zusammenfassungen
+
 ## 🛠️ Installation
 
 ### 1. Abhängigkeiten installieren
 ```bash
+pip install -r requirements.txt
 pip install -r requirements_dashboard.txt
 ```
 
@@ -58,9 +93,13 @@ Das Dashboard öffnet sich automatisch in Ihrem Standard-Webbrowser.
 - **Pfad eingeben**: Oder geben Sie den vollständigen Pfad zu Ihrer SQLite-Datei ein
 
 ### Schritt 2: Daten erkunden
+- **Seitenauswahl**: Wählen Sie die gewünschte Seite aus der linken Sidebar
 - **Übersicht**: Schauen Sie sich die Struktur Ihrer Daten an
 - **Analyse**: Untersuchen Sie Statistiken und Datenqualität
 - **Visualisierungen**: Erstellen Sie Charts für besseres Verständnis
+- **Trade-Tabelle**: Vollständige Übersicht aller Trading-Daten
+- **Trade-Metriken**: Detaillierte Trading-Statistiken
+- **Kalender**: Tagesweise Gewinnübersicht
 
 ### Schritt 3: Daten exportieren
 - **Format wählen**: Wählen Sie das gewünschte Export-Format
@@ -89,22 +128,27 @@ Das Dashboard öffnet sich automatisch in Ihrem Standard-Webbrowser.
 - Identifikation von Duplikaten
 - Überprüfung der Datenkonsistenz
 
+### 📈 Trading-Analyse
+- Tagesweise Gewinnübersicht
+- Strategie-Performance-Analyse
+- Trading-Metriken und Statistiken
+
 ## ⚙️ Konfiguration
 
 Das Dashboard verwendet die gleiche Konfiguration wie der DataLoader:
-- `config/config.ini` - Hauptkonfiguration
-- `config/tradelog_config.ini` - Tradelog-spezifische Einstellungen
+- `config/default.yaml` - Hauptkonfiguration
+- Automatische Erkennung von Trading-spezifischen Spalten
 
 ## 🎨 Anpassung
 
 ### CSS-Styling
-Das Dashboard verwendet benutzerdefiniertes CSS für ein modernes Design. Sie können das Styling in der `main()`-Funktion anpassen.
+Das Dashboard verwendet benutzerdefiniertes CSS für ein modernes Design. Sie können das Styling in den jeweiligen Modulen anpassen.
 
-### Neue Chart-Typen
-Fügen Sie neue Visualisierungen in der `show_visualization_tab()`-Funktion hinzu.
+### Neue Seiten hinzufügen
+Fügen Sie neue Seiten in das `modules/` Verzeichnis hinzu und registrieren Sie sie in der Hauptnavigation.
 
 ### Zusätzliche Export-Formate
-Erweitern Sie die Export-Funktionalität in der `show_export_tab()`-Funktion.
+Erweitern Sie die Export-Funktionalität in den jeweiligen Modulen.
 
 ## 🚨 Fehlerbehebung
 
@@ -135,7 +179,7 @@ Das Dashboard kann einfach in bestehende Workflows integriert werden:
 
 - **Automatisierung**: Starten Sie das Dashboard über Skripte
 - **API-Integration**: Verwenden Sie die DataLoader-Funktionen direkt
-- **Batch-Verarbeitung**: Kombinieren Sie mit dem `example_tradelog_loader.py`
+- **Batch-Verarbeitung**: Kombinieren Sie mit den Modulen
 
 ## 📱 Browser-Kompatibilität
 
@@ -167,6 +211,7 @@ Bei Fragen oder Problemen:
 2. Stellen Sie sicher, dass alle Abhängigkeiten installiert sind
 3. Testen Sie mit einer einfachen SQLite-Datei
 4. Überprüfen Sie die Browser-Konsole auf JavaScript-Fehler
+5. Siehe auch: [TROUBLESHOOTING.md](TROUBLESHOOTING.md)
 
 ---
 
