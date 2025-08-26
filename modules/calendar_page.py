@@ -84,16 +84,27 @@ def show_calendar_page(data_loader, db_path):
         daily_pnl = daily_pnl.sort_values('date')
         
         # Monats-Navigation
-        col1, col2, col3, col4 = st.columns([1, 2, 2, 1])
+        col1, col2, col3, col4 = st.columns([2, 1, 1, 1])
         
         with col1:
-            if st.button("Today", key="today_btn"):
+            # Aktueller Monat und Jahr
+            if 'current_month' not in st.session_state:
+                st.session_state.current_month = datetime.now().month
+                st.session_state.current_year = datetime.now().year
+            
+            month_names = ["Januar", "Februar", "März", "April", "Mai", "Juni", 
+                          "Juli", "August", "September", "Oktober", "November", "Dezember"]
+            month_name = month_names[st.session_state.current_month - 1]
+            st.markdown(f'<div class="month-header">{month_name} {st.session_state.current_year}</div>', unsafe_allow_html=True)
+        
+        with col2:
+            if st.button("**TODAY**", key="today_btn", use_container_width=True):
                 st.session_state.current_month = datetime.now().month
                 st.session_state.current_year = datetime.now().year
                 st.rerun()
         
-        with col2:
-            if st.button("←", key="prev_month"):
+        with col3:
+            if st.button("**←**", key="prev_month", use_container_width=True):
                 if 'current_month' not in st.session_state:
                     st.session_state.current_month = datetime.now().month
                     st.session_state.current_year = datetime.now().year
@@ -104,8 +115,8 @@ def show_calendar_page(data_loader, db_path):
                     st.session_state.current_year -= 1
                 st.rerun()
         
-        with col3:
-            if st.button("→", key="next_month"):
+        with col4:
+            if st.button("**→**", key="next_month", use_container_width=True):
                 if 'current_month' not in st.session_state:
                     st.session_state.current_month = datetime.now().month
                     st.session_state.current_year = datetime.now().year
@@ -115,17 +126,6 @@ def show_calendar_page(data_loader, db_path):
                     st.session_state.current_month = 1
                     st.session_state.current_year += 1
                 st.rerun()
-        
-        with col4:
-            # Aktueller Monat und Jahr
-            if 'current_month' not in st.session_state:
-                st.session_state.current_month = datetime.now().month
-                st.session_state.current_year = datetime.now().year
-            
-            month_names = ["Januar", "Februar", "März", "April", "Mai", "Juni", 
-                          "Juli", "August", "September", "Oktober", "November", "Dezember"]
-            month_name = month_names[st.session_state.current_month - 1]
-            st.markdown(f"**{month_name} {st.session_state.current_year}**")
         
         # Monatssumme berechnen
         month_start = date(st.session_state.current_year, st.session_state.current_month, 1)
@@ -142,22 +142,27 @@ def show_calendar_page(data_loader, db_path):
         month_total = month_data['daily_pnl'].sum()
         month_trades = month_data['trade_count'].sum()
         
-        st.markdown(f"**Monatssumme: ${month_total:,.2f} ({month_trades} Trades)**")
-        
         # CSS für Kalender - Vereinfacht und größer
         st.markdown("""
         <style>
         .calendar-day {
-            min-height: 100px;
+            min-height: 120px;
+            height: 120px;
             padding: 10px;
             border: 1px solid #dee2e6;
             border-radius: 5px;
             background-color: white;
             position: relative;
             text-align: center;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            box-sizing: border-box;
         }
         .calendar-day.empty {
             background-color: #f8f9fa;
+            min-height: 120px;
+            height: 120px;
         }
         .calendar-day.positive {
             background-color: #d4edda;
@@ -188,6 +193,81 @@ def show_calendar_page(data_loader, db_path):
             color: #6c757d;
             font-weight: bold;
         }
+        .week-summary {
+            background-color: #e3f2fd !important;
+            border-color: #2196f3 !important;
+            border-width: 2px;
+        }
+        .week-summary .day-number {
+            font-size: 20px;
+        }
+        /* Wochentags-Header zentrieren */
+        .stMarkdown {
+            text-align: center !important;
+        }
+        /* Spezifisch für Header-Spalten */
+        .stMarkdown p {
+            text-align: center !important;
+            margin: 0 !important;
+            padding: 0 !important;
+        }
+        /* Prominenter Monatsheader */
+        .month-header {
+            font-size: 36px;
+            font-weight: bold;
+            color: #2c3e50;
+            text-align: left;
+            padding: 20px;
+            background: linear-gradient(135deg, #ff6b6b 0%, #ee5a24 100%);
+            color: white;
+            border-radius: 10px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.3);
+            margin: 10px 0;
+            letter-spacing: 2px;
+            width: 100%;
+            display: block;
+        }
+        /* Große Navigation-Buttons */
+        .stButton > button {
+            font-size: 24px !important;
+            font-weight: 900 !important;
+            padding: 20px 25px !important;
+            height: 120px !important;
+            min-height: 120px !important;
+            border-radius: 15px !important;
+            border: 4px solid #4a5568 !important;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
+            color: white !important;
+            box-shadow: 0 8px 25px rgba(0,0,0,0.3) !important;
+            transition: all 0.3s ease !important;
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            cursor: pointer !important;
+            position: relative !important;
+            overflow: hidden !important;
+        }
+        
+        .stButton > button::before {
+            content: '' !important;
+            position: absolute !important;
+            top: 0 !important;
+            left: -100% !important;
+            width: 100% !important;
+            height: 100% !important;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent) !important;
+            transition: left 0.5s !important;
+        }
+        
+        .stButton > button:hover::before {
+            left: 100% !important;
+        }
+        .stButton > button:hover {
+            transform: translateY(-2px) !important;
+            box-shadow: 0 6px 20px rgba(0,0,0,0.3) !important;
+            border-color: #764ba2 !important;
+        }
         </style>
         """, unsafe_allow_html=True)
         
@@ -200,11 +280,14 @@ def show_calendar_page(data_loader, db_path):
         st.markdown('<div class="calendar-container">', unsafe_allow_html=True)
         
         # Wochentags-Header mit Streamlit Columns (garantiert funktioniert)
-        st.markdown("**📅 Wochentage:**")
-        header_cols = st.columns(7)
+        header_cols = st.columns(8)  # 7 Wochentage + 1 Wochensumme
         for i, day_name in enumerate(weekday_names):
             with header_cols[i]:
-                st.markdown(f"**{day_name}**")
+                st.markdown(f"**{day_name}**", help="")
+        
+        # Wochensumme-Header
+        with header_cols[7]:
+            st.markdown("**📊**", help="")
         
         st.markdown("---")
         
@@ -222,8 +305,12 @@ def show_calendar_page(data_loader, db_path):
         
         # 5 Wochen durchgehen - jede Woche in einer eigenen Zeile
         for week in range(5):
-            # Für jede Woche 7 Spalten erstellen
-            week_cols = st.columns(7)
+            # Für jede Woche 8 Spalten erstellen (7 Tage + 1 Wochensumme)
+            week_cols = st.columns(8)
+            
+            # Variablen für Wochenberechnung
+            week_pnl = 0
+            week_trades = 0
             
             for day_of_week in range(7):  # 7 Tage pro Woche
                 # Tag-Nummer berechnen
@@ -242,6 +329,10 @@ def show_calendar_page(data_loader, db_path):
                         if len(day_data) > 0:
                             daily_pnl_value = day_data.iloc[0]['daily_pnl']
                             trade_count = day_data.iloc[0]['trade_count']
+                            
+                            # Wochenwerte akkumulieren
+                            week_pnl += daily_pnl_value
+                            week_trades += trade_count
                             
                             # CSS-Klasse basierend auf P&L
                             css_class = "positive" if daily_pnl_value > 0 else "negative"
@@ -271,12 +362,31 @@ def show_calendar_page(data_loader, db_path):
                             """
                             st.markdown(day_html, unsafe_allow_html=True)
             
+            # Wochensumme in der 8. Spalte anzeigen
+            with week_cols[7]:
+                if week_trades > 0:
+                    week_css_class = "positive" if week_pnl > 0 else "negative"
+                    week_html = f"""
+                    <div class="calendar-day {week_css_class} week-summary">
+                        <div class="day-number">📊</div>
+                        <div class="daily-pnl">${week_pnl:,.2f}</div>
+                        <div class="trade-count">{week_trades} Trade{'s' if week_trades != 1 else ''}</div>
+                    </div>
+                    """
+                    st.markdown(week_html, unsafe_allow_html=True)
+                else:
+                    st.markdown("")
+            
             # Abstand zwischen den Wochen
             st.markdown("---")
         
         # Zusätzliche Statistiken
         st.markdown("---")
         st.subheader("📊 Monatsstatistiken")
+        
+        # Monatssumme prominent anzeigen
+        st.markdown(f"### 💰 Monatssumme: ${month_total:,.2f} ({month_trades} Trades)")
+        st.markdown("---")
         
         col1, col2, col3, col4 = st.columns(4)
         
