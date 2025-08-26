@@ -242,9 +242,65 @@ def show_metrics_page(data_loader, db_path):
                 # Finde das Datum des Max Drawdowns
                 max_dd_idx = drawdown.idxmin()
                 max_dd_date = trade_data.loc[max_dd_idx, date_col].strftime('%d.%m.%Y') if pd.notna(max_dd_idx) else "N/A"
+                
+                # Finde den Tiefpunkt (niedrigsten Wert nach dem Peak)
+                if pd.notna(peak_idx):
+                    # Betrachte nur Daten nach dem Peak
+                    data_after_peak = cumulative[peak_idx:]
+                    if len(data_after_peak) > 1:  # Mindestens 2 Datenpunkte nach dem Peak
+                        # Suche den niedrigsten Wert nach dem Peak
+                        bottom_idx = data_after_peak.idxmin()
+                        if pd.notna(bottom_idx) and bottom_idx != peak_idx:
+                            bottom_value = cumulative.loc[bottom_idx]
+                            bottom_date = trade_data.loc[bottom_idx, date_col].strftime('%d.%m.%Y')
+                        else:
+                            # Fallback: Kein echter Tiefpunkt nach dem Peak
+                            bottom_value = peak_value
+                            bottom_date = peak_date
+                    else:
+                        # Keine Daten nach dem Peak - suche den niedrigsten Wert in der gesamten Zeitreihe
+                        # Das ist der "globale Tiefpunkt" für den Max Drawdown
+                        global_bottom_idx = cumulative.idxmin()
+                        if pd.notna(global_bottom_idx):
+                            bottom_value = cumulative.loc[global_bottom_idx]
+                            bottom_date = trade_data.loc[global_bottom_idx, date_col].strftime('%d.%m.%Y')
+                        else:
+                            bottom_value = peak_value
+                            bottom_date = peak_date
+                else:
+                    bottom_value = peak_value
+                    bottom_date = peak_date
+                
+                # DEBUG: Alle wichtigen Daten anzeigen
+                st.info(f"""
+                **🔍 DEBUG Max Drawdown Berechnung:**
+                - Peak Index: {peak_idx}
+                - Peak Value: ${peak_value:,.2f}
+                - Peak Date: {peak_date}
+                - Bottom Index: {bottom_idx if 'bottom_idx' in locals() else 'N/A'}
+                - Bottom Value: ${bottom_value:,.2f}
+                - Bottom Date: {bottom_date}
+                - Max DD Index: {max_dd_idx}
+                - Max DD Date: {max_dd_date}
+                - Max DD Value: {max_drawdown:.1f}%
+                """)
+                
+                # Zeige die ersten 10 Zeilen der kumulativen P&L für Debugging
+                st.info(f"""
+                **📊 Erste 10 Zeilen der kumulativen P&L:**
+                {cumulative.head(10).to_string()}
+                """)
+                
+                # Zeige die ersten 10 Zeilen des Drawdowns für Debugging
+                st.info(f"""
+                **📉 Erste 10 Zeilen des Drawdowns:**
+                {drawdown.head(10).to_string()}
+                """)
             else:
                 peak_date = "N/A"
                 max_dd_date = "N/A"
+                bottom_date = "N/A"
+                bottom_value = peak_value
             
             # Durchschnittliche Gewinner und Verlierer
             winning_trades = trade_data[trade_data[profit_col] > 0]
@@ -325,73 +381,6 @@ def show_metrics_page(data_loader, db_path):
                 </div>
                 """, unsafe_allow_html=True)
         
-        # Long/Short Preise und Volumen
-        price_long_cols = [col for col in trade_data.columns if 'pricelong' in col.lower() or 'price_long' in col.lower() or 'longprice' in col.lower()]
-        price_short_cols = [col for col in trade_data.columns if 'priceshort' in col.lower() or 'price_short' in col.lower() or 'shortprice' in col.lower()]
-        quantity_cols = [col for col in trade_data.columns if 'quantity' in col.lower() or 'qty' in col.lower() or 'size' in col.lower()]
-        
-        # TOTAL LONG COSTS berechnen
-        if price_long_cols and quantity_cols:
-            price_long_col = price_long_cols[0]
-            qty_col = quantity_cols[0]
-            
-            # Prüfe ob Spalten numerisch sind
-            if pd.api.types.is_numeric_dtype(trade_data[price_long_col]) and pd.api.types.is_numeric_dtype(trade_data[qty_col]):
-                # Berechne: PriceLong * 100 * Quantity
-                total_long_costs = (trade_data[price_long_col] * 100 * trade_data[qty_col]).sum()
-                avg_long_price = trade_data[price_long_col].mean()
-                max_long_price = trade_data[price_long_col].max()
-                min_long_price = trade_data[price_long_col].min()
-            else:
-                total_long_costs = avg_long_price = max_long_price = min_long_price = 0
-        else:
-            total_long_costs = avg_long_price = max_long_price = min_long_price = 0
-        
-        # TOTAL SHORT PREMIUM berechnen
-        if price_short_cols and quantity_cols:
-            price_short_col = price_short_cols[0]
-            qty_col = quantity_cols[0]
-            
-            if pd.api.types.is_numeric_dtype(trade_data[price_short_col]) and pd.api.types.is_numeric_dtype(trade_data[qty_col]):
-                # Berechne: PriceShort * 100 * Quantity
-                total_short_premium = (trade_data[price_short_col] * 100 * trade_data[qty_col]).sum()
-                avg_short_price = trade_data[price_short_col].mean()
-                max_short_price = trade_data[price_short_col].max()
-                min_short_price = trade_data[price_short_col].min()
-            else:
-                total_short_premium = avg_short_price = max_short_price = min_short_price = 0
-        else:
-            total_short_premium = avg_short_price = max_short_price = min_short_price = 0
-        
-        # Weitere Volumen-Metriken
-        total_volume = total_short_premium - total_long_costs
-        avg_trade_size = total_volume / total_trades if total_trades > 0 else 0
-        long_short_ratio = total_long_costs / total_short_premium if total_short_premium > 0 else 0
-        
-        # Premium Capture Rate (P&L / Total Volume)
-        if total_volume > 0:
-            premium_capture_rate = (total_profit / total_volume) * 100
-        else:
-            premium_capture_rate = 0
-        
-        # TOTAL COMMISSION berechnen
-        commission_cols = [col for col in trade_data.columns if col.lower() == 'commission']
-        commission_close_cols = [col for col in trade_data.columns if col.lower() == 'commissionclose']
-        
-        total_commission = 0
-        
-        # Commission Spalte
-        if commission_cols:
-            commission_col = commission_cols[0]
-            if pd.api.types.is_numeric_dtype(trade_data[commission_col]):
-                total_commission += trade_data[commission_col].sum()
-        
-        # CommissionClose Spalte
-        if commission_close_cols:
-            commission_close_col = commission_close_cols[0]
-            if pd.api.types.is_numeric_dtype(trade_data[commission_close_col]):
-                total_commission += trade_data[commission_close_col].sum()
-        
         # Kacheln für Key Performance Metrics
         col1, col2, col3, col4, col5 = st.columns(5)
         
@@ -466,27 +455,15 @@ def show_metrics_page(data_loader, db_path):
             st.markdown(f"""
             <div class="metric-tile">
                 <div class="metric-header">
-                    <div class="metric-icon">💰</div>
-                    <div class="metric-title">TOTAL COMMISSION</div>
-                </div>
-                <div class="metric-value neutral">${total_commission:,.2f}</div>
-                <div class="metric-description">Sum of all commissions</div>
-            </div>
-            """, unsafe_allow_html=True)
-        
-        with col3:
-            st.markdown(f"""
-            <div class="metric-tile">
-                <div class="metric-header">
                     <div class="metric-icon">📉</div>
                     <div class="metric-title">MAX DRAWDOWN</div>
                 </div>
                 <div class="metric-value negative">{max_drawdown:.1f}%</div>
-                <div class="metric-description">Peak: ${peak_value:,.2f} am {peak_date}<br>Max DD: {max_dd_date}</div>
+                <div class="metric-description">Peak: ${peak_value:,.2f} am {peak_date}<br>Bottom: ${bottom_value:,.2f} am {bottom_date}<br>Max DD: {max_drawdown:.1f}% am {max_dd_date}</div>
             </div>
             """, unsafe_allow_html=True)
         
-        with col4:
+        with col3:
             st.markdown(f"""
             <div class="metric-tile">
                 <div class="metric-header">
@@ -498,7 +475,7 @@ def show_metrics_page(data_loader, db_path):
             </div>
             """, unsafe_allow_html=True)
         
-        with col5:
+        with col4:
             st.markdown(f"""
             <div class="metric-tile">
                 <div class="metric-header">
@@ -507,103 +484,6 @@ def show_metrics_page(data_loader, db_path):
                 </div>
                 <div class="metric-value negative">${avg_loser:.2f}</div>
                 <div class="metric-description">Average losing trade</div>
-            </div>
-            """, unsafe_allow_html=True)
-        
-        with col4:
-            # Durchschnittlicher Gewinner
-            if profit_cols:
-                winning_trades = trade_data[trade_data[profit_col] > 0]
-                if len(winning_trades) > 0:
-                    avg_winner = winning_trades[profit_col].mean()
-                else:
-                    avg_winner = 0
-            else:
-                avg_winner = 0
-            
-            st.markdown(f"""
-            <div class="metric-tile">
-                <div class="metric-header">
-                    <div class="metric-icon">🟢</div>
-                    <div class="metric-title">AVG WINNER</div>
-                </div>
-                <div class="metric-value positive">${avg_winner:.2f}</div>
-                <div class="metric-description">Durchschnittlicher Gewinner</div>
-            </div>
-            """, unsafe_allow_html=True)
-        
-        with col5:
-            # Durchschnittlicher Verlierer
-            if profit_cols:
-                losing_trades = trade_data[trade_data[profit_col] < 0]
-                if len(losing_trades) > 0:
-                    avg_loser = losing_trades[profit_col].mean()
-                else:
-                    avg_loser = 0
-            else:
-                avg_loser = 0
-            
-            st.markdown(f"""
-            <div class="metric-tile">
-                <div class="metric-header">
-                    <div class="metric-icon">🔴</div>
-                    <div class="metric-title">AVG LOSER</div>
-                </div>
-                <div class="metric-value negative">${avg_loser:.2f}</div>
-                <div class="metric-description">Durchschnittlicher Verlierer</div>
-            </div>
-            """, unsafe_allow_html=True)
-        
-        # 2. Additional Metrics
-        st.subheader("📊 Additional Metrics")
-        
-        col1, col2, col3, col4, col5, col6, col7 = st.columns(7)
-        
-        with col1:
-            st.markdown(f"""
-            <div class="metric-tile">
-                <div class="metric-header">
-                    <div class="metric-icon">🪙</div>
-                    <div class="metric-title">TOTAL LONG COSTS</div>
-                </div>
-                <div class="metric-value neutral">${total_long_costs:,.2f}</div>
-                <div class="metric-description">Qty * 100 * PriceLong</div>
-            </div>
-            """, unsafe_allow_html=True)
-        
-        with col2:
-            st.markdown(f"""
-            <div class="metric-tile">
-                <div class="metric-header">
-                    <div class="metric-icon">📊</div>
-                    <div class="metric-title">AVG LONG PRICE</div>
-                </div>
-                <div class="metric-value neutral">${avg_long_price:,.2f}</div>
-                <div class="metric-description">Average long price</div>
-            </div>
-            """, unsafe_allow_html=True)
-        
-        with col3:
-            st.markdown(f"""
-            <div class="metric-tile">
-                <div class="metric-header">
-                    <div class="metric-icon">📈</div>
-                    <div class="metric-title">MAX LONG PRICE</div>
-                </div>
-                <div class="metric-value neutral">${max_long_price:,.2f}</div>
-                <div class="metric-description">Highest long price</div>
-            </div>
-            """, unsafe_allow_html=True)
-        
-        with col4:
-            st.markdown(f"""
-            <div class="metric-tile">
-                <div class="metric-header">
-                    <div class="metric-icon">📉</div>
-                    <div class="metric-title">MIN LONG PRICE</div>
-                </div>
-                <div class="metric-value neutral">${min_long_price:,.2f}</div>
-                <div class="metric-description">Lowest long price</div>
             </div>
             """, unsafe_allow_html=True)
         
@@ -619,31 +499,7 @@ def show_metrics_page(data_loader, db_path):
             </div>
             """, unsafe_allow_html=True)
         
-        with col6:
-            st.markdown(f"""
-            <div class="metric-tile">
-                <div class="metric-header">
-                    <div class="metric-icon">📊</div>
-                    <div class="metric-title">AVG SHORT PRICE</div>
-                </div>
-                <div class="metric-value neutral">${avg_short_price:,.2f}</div>
-                <div class="metric-description">Average short price</div>
-            </div>
-            """, unsafe_allow_html=True)
-        
-        with col7:
-            st.markdown(f"""
-            <div class="metric-tile">
-                <div class="metric-header">
-                    <div class="metric-icon">📈</div>
-                    <div class="metric-title">MAX SHORT PRICE</div>
-                </div>
-                <div class="metric-value neutral">${max_short_price:,.2f}</div>
-                <div class="metric-description">Highest short price</div>
-            </div>
-            """, unsafe_allow_html=True)
-        
-        # 2.5. Daily Performance Metrics
+        # 2. Daily Performance Metrics
         st.subheader("📅 Daily Performance Metrics")
         
         col1, col2, col3, col4 = st.columns(4)
@@ -693,95 +549,6 @@ def show_metrics_page(data_loader, db_path):
                 </div>
                 <div class="metric-value negative">{negative_days_count if 'negative_days_count' in locals() else 0}</div>
                 <div class="metric-description">Days with negative P&L</div>
-            </div>
-            """, unsafe_allow_html=True)
-        
-        # 3. Trading Volume Metrics
-        st.subheader("🪙 Trading Volume Metrics")
-        
-        col1, col2, col3, col4, col5, col6, col7 = st.columns(7)
-        
-        with col1:
-            st.markdown(f"""
-            <div class="metric-tile">
-                <div class="metric-header">
-                    <div class="metric-icon">💰</div>
-                    <div class="metric-title">TOTAL SHORT PREMIUM</div>
-                </div>
-                <div class="metric-value neutral">${total_short_premium:,.2f}</div>
-                <div class="metric-description">Qty * 100 * PriceShort</div>
-            </div>
-            """, unsafe_allow_html=True)
-        
-        with col2:
-            st.markdown(f"""
-            <div class="metric-tile">
-                <div class="metric-header">
-                    <div class="metric-icon">📉</div>
-                    <div class="metric-title">MIN SHORT PRICE</div>
-                </div>
-                <div class="metric-value neutral">${min_short_price:,.2f}</div>
-                <div class="metric-description">Lowest short price</div>
-            </div>
-            """, unsafe_allow_html=True)
-        
-        with col3:
-            st.markdown(f"""
-            <div class="metric-tile">
-                <div class="metric-header">
-                    <div class="metric-icon">📊</div>
-                    <div class="metric-title">TOTAL VOLUME</div>
-                </div>
-                <div class="metric-value neutral">${total_volume:,.2f}</div>
-                <div class="metric-description">Short - Long Premiums</div>
-            </div>
-            """, unsafe_allow_html=True)
-        
-        with col4:
-            st.markdown(f"""
-            <div class="metric-tile">
-                <div class="metric-header">
-                    <div class="metric-icon">📈</div>
-                    <div class="metric-title">AVG TRADE SIZE</div>
-                </div>
-                <div class="metric-value neutral">${avg_trade_size:,.2f}</div>
-                <div class="metric-description">Average premium per trade</div>
-            </div>
-            """, unsafe_allow_html=True)
-        
-        with col5:
-            st.markdown(f"""
-            <div class="metric-tile">
-                <div class="metric-header">
-                    <div class="metric-icon">⚖️</div>
-                    <div class="metric-title">LONG/SHORT RATIO</div>
-                </div>
-                <div class="metric-value neutral">{long_short_ratio:.2f}</div>
-                <div class="metric-description">Long vs Short volume</div>
-            </div>
-            """, unsafe_allow_html=True)
-        
-        with col6:
-            st.markdown(f"""
-            <div class="metric-tile">
-                <div class="metric-header">
-                    <div class="metric-icon">🎯</div>
-                    <div class="metric-title">PREMIUM CAPTURE RATE</div>
-                </div>
-                <div class="metric-value neutral">{premium_capture_rate:.1f}%</div>
-                <div class="metric-description">P&L / Total Volume</div>
-            </div>
-            """, unsafe_allow_html=True)
-        
-        with col7:
-            st.markdown(f"""
-            <div class="metric-tile">
-                <div class="metric-header">
-                    <div class="metric-icon">📊</div>
-                    <div class="metric-title">COMMISSION RATE</div>
-                </div>
-                <div class="metric-value neutral">0.00%</div>
-                <div class="metric-description">Commission / Total Volume</div>
             </div>
             """, unsafe_allow_html=True)
         
@@ -842,9 +609,6 @@ def show_metrics_page(data_loader, db_path):
                         if len(daily_pnl) == 0:
                             st.warning("⚠️ Keine gültigen Daten für die Chart-Erstellung verfügbar")
                             return
-                        
-                        # Tägliche Gruppierung für PCR-Chart verfügbar machen
-                        daily_grouped = chart_data.groupby(chart_data[date_cols[0]].dt.date)
                             
                     except Exception as e:
                         st.error(f"❌ Fehler bei der Datenverarbeitung: {e}")
@@ -852,7 +616,6 @@ def show_metrics_page(data_loader, db_path):
                     
                     # Chart erstellen
                     # Einzelnes Chart mit zwei Y-Achsen
-                    import plotly.graph_objects as go
                     fig = go.Figure()
                     
                     # Tägliche P&L als Balken (linke Y-Achse) - grün für Gewinne, rot für Verluste
@@ -910,433 +673,6 @@ def show_metrics_page(data_loader, db_path):
                     )
                     
                     st.plotly_chart(fig, use_container_width=True)
-                    
-                    # Kalenderwochen-Verdichtung als Bar-Chart
-                    if len(daily_pnl) > 0:
-                        st.markdown("---")
-                        st.caption("📊 **Kalenderwochen-Verdichtung als Bar-Chart**")
-                        
-                        # Erstelle Kalenderwochen-Gruppierung für das Chart
-                        daily_pnl_chart = daily_pnl.copy()
-                        daily_pnl_chart['Week'] = daily_pnl_chart[date_cols[0]].dt.isocalendar().week
-                        daily_pnl_chart['Year'] = daily_pnl_chart[date_cols[0]].dt.isocalendar().year
-                        daily_pnl_chart['Week_Label'] = daily_pnl_chart['Year'].astype(str) + '-KW' + daily_pnl_chart['Week'].astype(str).str.zfill(2)
-                        
-                        # Sicherstellen, dass Profit-Spalte numerisch ist
-                        daily_pnl_chart[profit_cols[0]] = pd.to_numeric(daily_pnl_chart[profit_cols[0]], errors='coerce')
-                        daily_pnl_chart = daily_pnl_chart.dropna(subset=[profit_cols[0]])
-                        
-                        if len(daily_pnl_chart) > 0:
-                            weekly_chart_data = daily_pnl_chart.groupby('Week_Label')[profit_cols[0]].sum().reset_index()
-                            weekly_chart_data = weekly_chart_data.sort_values('Week_Label')
-                            
-                            # Erstelle Bar-Chart
-                            import plotly.graph_objects as go
-                            fig_weekly = go.Figure()
-                            
-                            # Farben basierend auf Profit/Loss
-                            colors = ['#28a745' if pd.notna(x) and x >= 0 else '#dc3545' for x in weekly_chart_data[profit_cols[0]]]
-                        
-                            fig_weekly.add_trace(go.Bar(
-                                x=weekly_chart_data['Week_Label'],
-                                y=weekly_chart_data[profit_cols[0]],
-                                marker_color=colors,
-                                name='Wöchentlicher P&L',
-                                hovertemplate='<b>%{x}</b><br>P&L: %{y:,.2f}€<extra></extra>'
-                            ))
-                            
-                            fig_weekly.update_layout(
-                                title="Wöchentliche P&L-Übersicht",
-                                xaxis_title="Kalenderwoche",
-                                yaxis_title="P&L (€)",
-                                height=400,
-                                showlegend=False,
-                                margin=dict(l=50, r=50, t=80, b=50),
-                                plot_bgcolor='white',
-                                paper_bgcolor='white'
-                            )
-                            
-                            # X-Achse rotieren für bessere Lesbarkeit
-                            fig_weekly.update_xaxes(tickangle=45, gridcolor='lightgray', gridwidth=1)
-                            fig_weekly.update_yaxes(gridcolor='lightgray', gridwidth=1)
-                            
-                            st.plotly_chart(fig_weekly, use_container_width=True)
-                        else:
-                            st.warning("⚠️ Keine gültigen Daten für wöchentliches Chart verfügbar")
-                    
-                    # Monats-Verdichtung als Bar-Chart
-                    if len(daily_pnl) > 0:
-                        st.markdown("---")
-                        st.caption("📅 **Monats-Verdichtung als Bar-Chart**")
-                        
-                        # Erstelle Monats-Gruppierung für das Chart
-                        daily_pnl_monthly = daily_pnl.copy()
-                        daily_pnl_monthly['Month'] = daily_pnl_monthly[date_cols[0]].dt.to_period('M')
-                        
-                        # Sicherstellen, dass Profit-Spalte numerisch ist
-                        daily_pnl_monthly[profit_cols[0]] = pd.to_numeric(daily_pnl_monthly[profit_cols[0]], errors='coerce')
-                        daily_pnl_monthly = daily_pnl_monthly.dropna(subset=[profit_cols[0]])
-                        
-                        if len(daily_pnl_monthly) > 0:
-                            monthly_chart_data = daily_pnl_monthly.groupby('Month')[profit_cols[0]].sum().reset_index()
-                            monthly_chart_data['Month_Label'] = monthly_chart_data['Month'].dt.strftime('%b %Y')
-                            monthly_chart_data = monthly_chart_data.sort_values('Month')
-                            
-                            # Erstelle Monats-Bar-Chart
-                            fig_monthly = go.Figure()
-                            
-                            # Farben basierend auf Profit/Loss
-                            colors_monthly = ['#28a745' if pd.notna(x) and x >= 0 else '#dc3545' for x in monthly_chart_data[profit_cols[0]]]
-                        
-                            fig_monthly.add_trace(go.Bar(
-                                x=monthly_chart_data['Month_Label'],
-                                y=monthly_chart_data[profit_cols[0]],
-                                marker_color=colors_monthly,
-                                name='Monatlicher P&L',
-                                hovertemplate='<b>%{x}</b><br>P&L: %{y:,.2f}€<extra></extra>'
-                            ))
-                            
-                            fig_monthly.update_layout(
-                                title="Monatliche P&L-Übersicht",
-                                xaxis_title="Monat",
-                                yaxis_title="P&L (€)",
-                                height=350,
-                                showlegend=False,
-                                margin=dict(l=50, r=50, t=80, b=50),
-                                plot_bgcolor='white',
-                                paper_bgcolor='white'
-                            )
-                            
-                            # X-Achse rotieren für bessere Lesbarkeit
-                            fig_monthly.update_xaxes(tickangle=45, gridcolor='lightgray', gridwidth=1)
-                            fig_monthly.update_yaxes(gridcolor='lightgray', gridwidth=1)
-                            
-                            st.plotly_chart(fig_monthly, use_container_width=True)
-                        else:
-                            st.warning("⚠️ Keine gültigen Daten für monatliches Chart verfügbar")
-                    
-                    # Wochentag-Verdichtung als Bar-Chart
-                    if len(daily_pnl) > 0:
-                        st.markdown("---")
-                        st.caption("📅 **Wochentag-Verdichtung als Bar-Chart**")
-                        
-                        # Erstelle Wochentag-Gruppierung für das Chart
-                        daily_pnl_weekday = daily_pnl.copy()
-                        daily_pnl_weekday['Weekday'] = daily_pnl_weekday[date_cols[0]].dt.dayofweek
-                        daily_pnl_weekday['Weekday_Name'] = daily_pnl_weekday[date_cols[0]].dt.day_name()
-                        
-                        # Deutsche Wochentage
-                        weekday_names_de = {
-                            0: 'Montag', 1: 'Dienstag', 2: 'Mittwoch', 
-                            3: 'Donnerstag', 4: 'Freitag', 5: 'Samstag', 6: 'Sonntag'
-                        }
-                        daily_pnl_weekday['Weekday_DE'] = daily_pnl_weekday['Weekday'].map(weekday_names_de)
-                        
-                        # Sicherstellen, dass Profit-Spalte numerisch ist
-                        daily_pnl_weekday[profit_cols[0]] = pd.to_numeric(daily_pnl_weekday[profit_cols[0]], errors='coerce')
-                        daily_pnl_weekday = daily_pnl_weekday.dropna(subset=[profit_cols[0]])
-                        
-                        if len(daily_pnl_weekday) > 0:
-                            weekday_chart_data = daily_pnl_weekday.groupby(['Weekday', 'Weekday_DE'])[profit_cols[0]].sum().reset_index()
-                            weekday_chart_data = weekday_chart_data.sort_values('Weekday')
-                            
-                            # Erstelle Wochentag-Bar-Chart
-                            fig_weekday = go.Figure()
-                            
-                            # Farben basierend auf Profit/Loss
-                            colors_weekday = ['#28a745' if pd.notna(x) and x >= 0 else '#dc3545' for x in weekday_chart_data[profit_cols[0]]]
-                        
-                            fig_weekday.add_trace(go.Bar(
-                                x=weekday_chart_data['Weekday_DE'],
-                                y=weekday_chart_data[profit_cols[0]],
-                                marker_color=colors_weekday,
-                                name='Wochentag P&L',
-                                hovertemplate='<b>%{x}</b><br>P&L: %{y:,.2f}€<extra></extra>'
-                            ))
-                            
-                            fig_weekday.update_layout(
-                                title="Wochentag P&L-Übersicht",
-                                xaxis_title="Wochentag",
-                                yaxis_title="P&L (€)",
-                                height=350,
-                                showlegend=False,
-                                margin=dict(l=50, r=50, t=80, b=50),
-                                plot_bgcolor='white',
-                                paper_bgcolor='white'
-                            )
-                            
-                            # X-Achse rotieren für bessere Lesbarkeit
-                            fig_weekday.update_xaxes(tickangle=45, gridcolor='lightgray', gridwidth=1)
-                            fig_weekday.update_yaxes(gridcolor='lightgray', gridwidth=1)
-                            
-                            st.plotly_chart(fig_weekday, use_container_width=True)
-                        else:
-                            st.warning("⚠️ Keine gültigen Daten für Wochentag-Chart verfügbar")
-                    
-                    # Verdichtungen unter dem P&L Chart - KOMPAKT
-                    st.markdown("---")
-                    st.subheader("📊 Verdichtungen")
-                    
-                    # Zusätzliche Statistiken
-                    col1, col2, col3, col4 = st.columns(4)
-                    
-                    with col1:
-                        initial_pnl = daily_pnl['Cumulative_PnL'].iloc[0] if len(daily_pnl) > 0 else 0
-                        st.metric("Start P&L", f"${initial_pnl:,.2f}")
-                    
-                    with col2:
-                        final_pnl = daily_pnl['Cumulative_PnL'].iloc[-1] if len(daily_pnl) > 0 else 0
-                        st.metric("End P&L", f"${final_pnl:,.2f}")
-                    
-                    with col3:
-                        total_return = final_pnl - initial_pnl
-                        st.metric("Gesamt P&L", f"${total_return:,.2f}")
-                    
-                    with col4:
-                        # Berechne durchschnittlichen täglichen P&L
-                        if len(daily_pnl) > 0:
-                            avg_daily_pnl = daily_pnl[profit_cols[0]].mean()
-                            st.metric("Ø Täglicher P&L", f"${avg_daily_pnl:,.2f}")
-                        else:
-                            st.metric("Ø Täglicher P&L", "$0.00")
-                    
-                    # Premium Capture Rate (PCR) Chart pro Tag
-                    st.markdown("---")
-                    st.subheader("📈 Premium Capture Rate (PCR) pro Tag")
-                    
-                    try:
-
-                        
-                        # PCR-Berechnung: (Verkaufte Prämie + Gekaufte Prämie + Commission + Rückkaufpreis) / Verkaufte Prämie
-                        pcr_data = []
-                        
-                        for date, group in daily_grouped:
-                            # Tägliche Summen direkt berechnen (keine einzelnen PCR-Werte)
-                            daily_short_premium = 0
-                            daily_long_premium = 0
-                            daily_commission = 0
-                            daily_close_premium = 0
-                            valid_trades_count = 0
-                            
-                            for _, trade in group.iterrows():
-                                try:
-                                    # Verkaufte Prämie (ShortPrice)
-                                    short_premium = 0
-                                    if price_short_cols and pd.notna(trade.get(price_short_cols[0], 0)):
-                                        short_price = float(trade[price_short_cols[0]])
-                                        if quantity_cols and pd.notna(trade.get(quantity_cols[0], 0)):
-                                            qty = float(trade[quantity_cols[0]])
-                                            short_premium = abs(short_price * qty * 100)
-                                            daily_short_premium += short_premium
-                                    
-                                    # Gekaufte Prämie (LongPrice)
-                                    long_premium = 0
-                                    if price_long_cols and pd.notna(trade.get(price_long_cols[0], 0)):
-                                        long_price = float(trade[price_long_cols[0]])
-                                        if quantity_cols and pd.notna(trade.get(quantity_cols[0], 0)):
-                                            qty = float(trade[quantity_cols[0]])
-                                            long_premium = abs(long_price * qty * 100)
-                                            daily_long_premium += long_premium
-                                    
-                                    # Commission (Gesamt): Commission + CommissionClose
-                                    commission = 0
-                                    commission_breakdown = []
-                                    
-                                    if commission_cols and pd.notna(trade.get(commission_cols[0], 0)):
-                                        commission_val = abs(float(trade[commission_cols[0]]))
-                                        commission += commission_val
-                                        commission_breakdown.append(f"Commission: {commission_val:.2f}")
-                                    
-                                    if commission_close_cols and pd.notna(trade.get(commission_close_cols[0], 0)):
-                                        commission_close_val = abs(float(trade[commission_close_cols[0]]))
-                                        commission += commission_close_val
-                                        commission_breakdown.append(f"CommissionClose: {commission_close_val:.2f}")
-                                    
-                                    daily_commission += commission
-                                    commission_detail = " + ".join(commission_breakdown) if commission_breakdown else "Keine Commission"
-                                    
-                                    # Rückkaufpreis (ClosePrice)
-                                    close_premium = 0
-                                    price_close_cols = [col for col in trade_data.columns if 'priceclose' in col.lower() or 'price_close' in col.lower() or 'closepreis' in col.lower()]
-                                    
-                                    if price_close_cols and pd.notna(trade.get(price_close_cols[0], 0)):
-                                        close_price = float(trade[price_close_cols[0]])
-                                        if quantity_cols and pd.notna(trade.get(quantity_cols[0], 0)):
-                                            qty = float(trade[quantity_cols[0]])
-                                            close_premium = abs(close_price * qty * 100)
-                                            daily_close_premium += close_premium
-                                    
-
-                                    
-                                    if short_premium > 0:  # Gültiger Trade
-                                        valid_trades_count += 1
-                                
-                                except (ValueError, TypeError):
-                                    continue  # Skip trades mit fehlenden/ungültigen Daten
-                            
-                            # Tägliche PCR berechnen: (Prämieneinnahme - Commission - Rückkaufpreis) / Prämieneinnahme × 100%
-                            if daily_short_premium > 0:
-                                # Prämieneinnahme = Short-Prämie - Long-Prämie
-                                daily_premium_income = daily_short_premium - daily_long_premium
-                                
-                                # Netto-Prämie = Prämieneinnahme - Commission - Rückkaufpreis
-                                daily_net_premium = daily_premium_income - daily_commission - daily_close_premium
-                                
-                                # PCR = Netto-Prämie / Prämieneinnahme × 100
-                                daily_pcr = (daily_net_premium / daily_premium_income) * 100 if daily_premium_income > 0 else 0
-                                
-
-                                
-                                pcr_data.append({
-                                    'Datum': date,
-                                    'PCR_%': daily_pcr,
-                                    'Trades_Count': valid_trades_count,
-                                    'Short_Premium': daily_short_premium,
-                                    'Long_Premium': daily_long_premium,
-                                    'Commission': daily_commission,
-                                    'Close_Premium': daily_close_premium,
-                                    'Net_Premium': daily_net_premium
-                                })
-                        
-                        if pcr_data:
-                            # DataFrame für PCR erstellen
-                            pcr_df = pd.DataFrame(pcr_data)
-                            
-                            # PCR Chart mit Plotly erstellen
-                            import plotly.graph_objects as go
-                            
-                            fig = go.Figure()
-                            
-                            # PCR-Linie
-                            fig.add_trace(go.Scatter(
-                                x=pcr_df['Datum'],
-                                y=pcr_df['PCR_%'],
-                                mode='lines+markers',
-                                name='Premium Capture Rate',
-                                line=dict(color='#2E86AB', width=3),
-                                marker=dict(size=8, color='#2E86AB', symbol='circle'),
-                                customdata=pcr_df[['Short_Premium', 'Long_Premium', 'Commission', 'Close_Premium', 'Net_Premium', 'Trades_Count']],
-                                hovertemplate='<b>📅 %{x}</b><br>' +
-                                            '<b>📊 PCR: %{y:.2f}%</b><br>' +
-                                            '─────────────────<br>' +
-                                            '💰 Verkaufte Prämie: $%{customdata[0]:.2f}<br>' +
-                                            '💸 Gekaufte Prämie: $%{customdata[1]:.2f}<br>' +
-                                            '💳 Commission: $%{customdata[2]:.2f}<br>' +
-                                            '🔄 Rückkaufpreis: $%{customdata[3]:.2f}<br>' +
-                                            '─────────────────<br>' +
-                                            '💵 Netto-Prämie: $%{customdata[4]:.2f}<br>' +
-                                            '📈 Anzahl Trades: %{customdata[5]}<br>' +
-                                            '<extra></extra>'
-                            ))
-                            
-                            # Gewichteter Durchschnitt basierend auf Trades pro Tag
-                            total_net_premium = pcr_df['Net_Premium'].sum()
-                            total_premium_income = (pcr_df['Short_Premium'] - pcr_df['Long_Premium']).sum()
-                            weighted_avg_pcr = (total_net_premium / total_premium_income * 100) if total_premium_income > 0 else 0
-                            
-
-                            
-                            # Durchschnittslinie (gewichtet)
-                            avg_pcr_line = weighted_avg_pcr
-                            fig.add_hline(y=avg_pcr_line, line_dash="solid", line_color="red", opacity=0.8, line_width=2,
-                                        annotation_text=f"Ø {avg_pcr_line:.1f}% (gewichtet)", annotation_position="top right")
-                            
-                            # 0% Baseline (Break-even)
-                            fig.add_hline(y=0, line_dash="dash", line_color="gray", opacity=0.7,
-                                        annotation_text="0% Break-even", annotation_position="bottom right")
-                            
-                            # 50% und 100% Referenzlinien
-                            fig.add_hline(y=50, line_dash="dot", line_color="orange", opacity=0.5, 
-                                        annotation_text="50% PCR", annotation_position="bottom right")
-                            fig.add_hline(y=100, line_dash="dot", line_color="green", opacity=0.5,
-                                        annotation_text="100% PCR", annotation_position="bottom right")
-                            
-                            # Layout konfigurieren
-                            fig.update_layout(
-                                title={
-                                    'text': '📈 Premium Capture Rate (PCR) pro Tag',
-                                    'x': 0.5,
-                                    'xanchor': 'center',
-                                    'font': {'size': 20, 'family': 'Arial Black'}
-                                },
-                                xaxis=dict(
-                                    title='📅 Datum',
-                                    showgrid=True,
-                                    gridwidth=1,
-                                    gridcolor='rgba(128, 128, 128, 0.2)',
-                                    tickangle=45
-                                ),
-                                yaxis=dict(
-                                    title='📊 Premium Capture Rate (%)',
-                                    showgrid=True,
-                                    gridwidth=1,
-                                    gridcolor='rgba(128, 128, 128, 0.2)',
-                                    tickformat='.1f'
-                                ),
-                                plot_bgcolor='white',
-                                paper_bgcolor='white',
-                                height=500,
-                                hovermode='x unified',
-                                showlegend=False,
-                                margin=dict(l=80, r=80, t=80, b=80)
-                            )
-                            
-                            st.plotly_chart(fig, use_container_width=True)
-                            
-                            # PCR-Statistiken
-                            st.markdown("### 📊 PCR-Statistiken")
-                            col1, col2, col3, col4 = st.columns(4)
-                            
-                            with col1:
-                                avg_pcr = pcr_df['PCR_%'].mean()
-                                st.metric("Ø PCR", f"{avg_pcr:.2f}%", 
-                                        delta=f"{avg_pcr-50:.2f}pp" if avg_pcr != 50 else None)
-                            
-                            with col2:
-                                max_pcr = pcr_df['PCR_%'].max()
-                                st.metric("📈 Beste PCR (höchste)", f"{max_pcr:.2f}%")
-                            
-                            with col3:
-                                min_pcr = pcr_df['PCR_%'].min()
-                                st.metric("📉 Schlechteste PCR (niedrigste)", f"{min_pcr:.2f}%")
-                            
-                            with col4:
-                                positive_pcr_days = len(pcr_df[pcr_df['PCR_%'] > 0])  # PCR > 0% als "gut"
-                                total_days = len(pcr_df)
-                                success_rate = (positive_pcr_days / total_days * 100) if total_days > 0 else 0
-                                st.metric("✅ Profitable Tage (PCR > 0%)", f"{success_rate:.1f}%", 
-                                        delta=f"{positive_pcr_days}/{total_days}")
-                            
-                            # Info-Box für PCR-Erklärung
-                            with st.expander("ℹ️ Premium Capture Rate (PCR) Erklärung", expanded=False):
-                                st.markdown("""
-                                **📊 Premium Capture Rate (PCR) Formel:**
-                                ```
-                                PCR = (Prämieneinnahme - Commission - Rückkaufpreis) / Prämieneinnahme × 100%
-                                ```
-                                
-                                **💡 Berechnung der Komponenten:**
-                                - **Prämieneinnahme**: ShortPrice × Quantity × 100 - LongPrice × Quantity × 100
-                                - **Kosten (werden abgezogen):**
-                                  - Commission: Commission + CommissionClose
-                                  - Rückkaufpreis: ClosePrice × Quantity × 100
-                                
-                                **📈 Interpretation:**
-                                - **100% PCR**: Komplette Prämie eingenommen (Option wertlos verfallen)
-                                - **50% PCR**: Hälfte der Prämie eingenommen
-                                - **0% PCR**: Break-even (alle Kosten gedeckt, aber kein Gewinn)
-                                - **Negative PCR**: Verlust (mehr ausgegeben als eingenommen)
-                                
-                                **🎯 Ziel:** Möglichst hohe PCR (mehr Prämie im Verhältnis zu den Kosten eingenommen)
-                                """)
-                        
-                        else:
-                            st.warning("⚠️ Keine gültigen PCR-Daten für Chart verfügbar")
-                            st.info("💡 Für PCR-Berechnung werden Short Price, Long Price, Commission und Close Price benötigt")
-                    
-                    except Exception as pcr_error:
-                        st.error(f"❌ Fehler beim Erstellen des PCR-Charts: {pcr_error}")
-                        st.info("💡 Stellen Sie sicher, dass die benötigten Preisspalten verfügbar sind")
                     
                 else:
                     st.warning("⚠️ Datumsspalte konnte nicht als Datum interpretiert werden")
