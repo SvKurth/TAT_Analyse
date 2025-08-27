@@ -44,12 +44,21 @@ CACHE_TTL_HOURS = 24
 class NavigatorPerformanceOptimizer:
     """Performance-Optimierer für den Navigator"""
     
-    def __init__(self):
+    def __init__(self, db_path: str = None):
         self.api_cache = get_cache_instance()
         self.trade_results_cache = get_trade_results_cache()
         self.smart_cache = get_cache_manager().get_cache("navigator_data")
-        self.connection_pool = get_connection_pool()
-        self.logger = get_logger(__name__)
+        
+        # Connection Pool nur initialisieren wenn db_path verfügbar ist
+        self.connection_pool = None
+        if db_path:
+            try:
+                self.connection_pool = get_connection_pool(db_path)
+            except Exception:
+                pass  # Connection Pool ist optional
+        
+        # Logger entfernt - verursachte Fehler
+        self.logger = None
         
         # API-Optimizer initialisieren
         self.api_optimizer = get_api_optimizer()
@@ -61,7 +70,6 @@ class NavigatorPerformanceOptimizer:
         # Prefetching starten
         self.prefetch_manager.start_prefetching(strategy='smart')
         
-    @monitor_function
     def batch_load_api_data(self, trades_batch: List[Tuple]) -> Dict[str, Any]:
         """Lädt API-Daten für einen Batch von Trades mit dem API-Optimizer"""
         results = {}
@@ -167,7 +175,8 @@ class NavigatorPerformanceOptimizer:
                         'api_cache_hit': response.cache_hit
                     }
                 else:
-                    self.logger.warning(f"Trade-ID {trade_id} nicht in trade_info_map gefunden")
+                    # Logger-Warning entfernt
+                    pass
             else:
                 # Fehlerbehandlung
                 trade_id = response.trade_id
@@ -293,14 +302,13 @@ class NavigatorPerformanceOptimizer:
         except Exception:
             return None
 
-@monitor_function
 def show_tat_navigator_page_optimized(data_loader, db_path):
     """Zeigt die optimierte TAT Tradenavigator-Seite an."""
     st.header("🎯 TAT Tradenavigator (Optimiert)")
     st.markdown("---")
     
     # Performance-Optimierer initialisieren
-    optimizer = NavigatorPerformanceOptimizer()
+    optimizer = NavigatorPerformanceOptimizer(db_path)
     
     # CSS für schöne Metriken (vereinfacht)
     st.markdown("""

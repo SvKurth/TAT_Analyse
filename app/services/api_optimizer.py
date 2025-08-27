@@ -13,7 +13,7 @@ from queue import Queue, PriorityQueue
 import logging
 from datetime import datetime, timedelta
 
-from app.core.performance_monitor import monitor_function
+# Performance-Monitoring temporär deaktiviert
 from app.core.smart_cache import get_cache_manager
 from app.core.logging_service import get_logger
 
@@ -206,8 +206,7 @@ class APIOptimizer:
         self.api_functions[name] = function
         self.logger.info(f"API-Funktion '{name}' registriert")
     
-    @monitor_function
-    def submit_request(self, trade_id: str, asset: str, date: str, option_type: str, 
+    def submit_request(self, trade_id: str, asset: str, date: str, option_type: str,
                       strike: int, priority: int = 1) -> str:
         """Reicht eine API-Anfrage ein"""
         request = APIRequest(
@@ -223,9 +222,8 @@ class APIOptimizer:
         self.request_queue.put(request)
         return trade_id
     
-    @monitor_function
-    def submit_batch_requests(self, requests: List[Tuple[str, str, str, str, int]], 
-                            priority: int = 1) -> List[str]:
+    def submit_batch_requests(self, requests: List[Tuple[str, str, str, str, int]],
+                             priority: int = 1) -> List[str]:
         """Reicht mehrere API-Anfragen als Batch ein"""
         trade_ids = []
         

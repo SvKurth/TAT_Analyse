@@ -33,8 +33,15 @@ from app.services.connection_pool import create_connection_pool, ConnectionConfi
 from app.services.trade_data_service import TradeDataService
 from src.utils import load_config
 
+# Module direkt importieren
+from modules.overview_page import show_overview_page
+from modules.trade_table_page import show_trade_table_page
+from modules.metrics_page import show_metrics_page
+from modules.calendar_page import show_calendar_page
+from modules.monthly_calendar_page import show_monthly_calendar_page
+from modules.navigator_page import show_tat_navigator_page
+
 # Performance-Monitoring für die Hauptfunktionen
-@monitor_function(slow_threshold=2.0)
 def initialize_services(config):
     """Initialisiert alle Services mit Performance-Monitoring."""
     try:
@@ -68,7 +75,6 @@ def initialize_services(config):
         st.error(f"Fehler bei der Service-Initialisierung: {e}")
         return False
 
-@monitor_function(slow_threshold=1.0)
 def load_trade_data(db_path, use_cache=True):
     """Lädt Trade-Daten mit Caching."""
     if use_cache and hasattr(st.session_state, 'trade_cache'):
@@ -214,12 +220,16 @@ def main():
             return
         
         # Services initialisieren
-        if st.button("🔄 Services initialisieren"):
+        if 'services_initialized' not in st.session_state:
             with st.spinner("Initialisiere Services..."):
                 if initialize_services(config):
+                    st.session_state.services_initialized = True
                     st.success("Services erfolgreich initialisiert!")
                 else:
                     st.error("Fehler bei der Service-Initialisierung")
+                    return
+        else:
+            st.success("✅ Services bereits initialisiert")
         
         # Seitenauswahl
         page = st.selectbox(
@@ -230,8 +240,7 @@ def main():
                 "📊 Metriken", 
                 "📅 Kalender", 
                 "📅 Monatskalender", 
-                "🚀 TAT Tradenavigator (Optimiert)",
-                "🎯 TAT Tradenavigator (Original)",
+                "🎯 TAT Tradenavigator",
                 "📊 Performance Dashboard"
             ],
             key="page_selector"
@@ -256,6 +265,11 @@ def main():
     
     # Daten laden falls Pfad verfügbar
     if db_path and (uploaded_file is not None or os.path.exists(db_path)):
+        # Prüfen ob Services initialisiert sind
+        if 'services_initialized' not in st.session_state:
+            st.error("Services müssen zuerst initialisiert werden!")
+            return
+            
         if 'trade_data' not in st.session_state:
             with st.spinner("Lade Trade-Daten..."):
                 trade_data = load_trade_data(db_path)
@@ -263,37 +277,36 @@ def main():
                     st.session_state.trade_data = trade_data
                     st.session_state.db_path = db_path
         
-        # Seite anzeigen
-        if page == "📋 Übersicht":
-            call_module_function('overview_page', 'show_overview_page', 
-                              get_service('trade_data_service'), db_path)
-        
-        elif page == "📈 Trade-Tabelle":
-            call_module_function('trade_table_page', 'show_trade_table_page', 
-                              get_service('trade_data_service'), db_path)
-        
-        elif page == "📊 Metriken":
-            call_module_function('metrics_page', 'show_metrics_page', 
-                              get_service('trade_data_service'), db_path)
-        
-        elif page == "📅 Kalender":
-            call_module_function('calendar_page', 'show_calendar_page', 
-                              get_service('trade_data_service'), db_path)
-        
-        elif page == "📅 Monatskalender":
-            call_module_function('monthly_calendar_page', 'show_monthly_calendar_page', 
-                              get_service('trade_data_service'), db_path)
-        
-        elif page == "🚀 TAT Tradenavigator (Optimiert)":
-            call_module_function('navigator_page_optimized', 'show_tat_navigator_page_optimized', 
-                              get_service('trade_data_service'), db_path)
-        
-        elif page == "🎯 TAT Tradenavigator (Original)":
-            call_module_function('navigator_page', 'show_tat_navigator_page', 
-                              get_service('trade_data_service'), db_path)
-        
-        elif page == "📊 Performance Dashboard":
-            show_performance_dashboard()
+        # Services für Seitenaufrufe verfügbar machen
+        try:
+            trade_service = get_service('trade_data_service')
+            
+            # Seite anzeigen
+            if page == "📋 Übersicht":
+                show_overview_page(trade_service, db_path)
+            
+            elif page == "📈 Trade-Tabelle":
+                show_trade_table_page(trade_service, db_path)
+            
+            elif page == "📊 Metriken":
+                show_metrics_page(trade_service, db_path)
+            
+            elif page == "📅 Kalender":
+                show_calendar_page(trade_service, db_path)
+            
+            elif page == "📅 Monatskalender":
+                show_monthly_calendar_page(trade_service, db_path)
+            
+            elif page == "🎯 TAT Tradenavigator":
+                show_tat_navigator_page(trade_service, db_path)
+            
+            elif page == "📊 Performance Dashboard":
+                show_performance_dashboard()
+                
+        except KeyError as e:
+            st.error(f"Service nicht verfügbar: {e}")
+            st.info("Bitte initialisieren Sie zuerst die Services.")
+            return
     
     else:
         st.info("Bitte wählen Sie eine SQLite-Datei aus oder geben Sie einen Pfad ein.")
