@@ -10,6 +10,8 @@ from typing import Dict, Any, List, Optional, Tuple
 from contextlib import contextmanager
 from app.core.logging_service import get_logger
 from app.core.error_handler import safe_execute, retry_on_error
+from app.core.performance_monitor import monitor_function
+from app.services.connection_pool import get_connection_pool, ConnectionConfig
 
 
 class DatabaseService:
@@ -24,7 +26,30 @@ class DatabaseService:
         """
         self.config = config
         self.logger = get_logger(__name__)
-        self._connection_pool = {}
+        
+        # Connection Pool für bessere Performance
+        self._connection_pool = None
+        self._init_connection_pool()
+    
+    def _init_connection_pool(self) -> None:
+        """Initialisiert den Connection Pool."""
+        try:
+            # Erstelle Connection Pool mit optimierter Konfiguration
+            pool_config = ConnectionConfig(
+                max_connections=10,
+                timeout=30.0,
+                enable_wal=True,
+                cache_size=10000,
+                synchronous="NORMAL",
+                journal_mode="WAL"
+            )
+            
+            # Pool wird bei Bedarf erstellt
+            self._connection_pool = None
+            
+        except Exception as e:
+            self.logger.error(f"Fehler beim Initialisieren des Connection Pools: {e}")
+            self._connection_pool = None
         
     @contextmanager
     def get_connection(self, db_path: str):
@@ -37,18 +62,40 @@ class DatabaseService:
         Yields:
             SQLite-Verbindung
         """
-        conn = None
-        try:
-            conn = sqlite3.connect(db_path)
-            self.logger.debug(f"Datenbankverbindung zu {db_path} hergestellt")
-            yield conn
-        except Exception as e:
-            self.logger.error(f"Fehler bei der Datenbankverbindung zu {db_path}: {e}")
-            raise
-        finally:
-            if conn:
-                conn.close()
-                self.logger.debug(f"Datenbankverbindung zu {db_path} geschlossen")
+        # Verwende Connection Pool falls verfügbar
+        if self._connection_pool and hasattr(self._connection_pool, 'get_connection'):
+            try:
+                with self._connection_pool.get_connection() as connection:
+                    yield connection.connection
+            except Exception as e:
+                self.logger.error(f"Fehler bei der Pool-Verbindung zu {db_path}: {e}")
+                # Fallback auf direkte Verbindung
+                conn = None
+                try:
+                    conn = sqlite3.connect(db_path)
+                    self.logger.debug(f"Fallback-Verbindung zu {db_path} hergestellt")
+                    yield conn
+                except Exception as e2:
+                    self.logger.error(f"Fehler bei der Fallback-Verbindung zu {db_path}: {e2}")
+                    raise
+                finally:
+                    if conn:
+                        conn.close()
+                        self.logger.debug(f"Fallback-Verbindung zu {db_path} geschlossen")
+        else:
+            # Fallback auf direkte Verbindung
+            conn = None
+            try:
+                conn = sqlite3.connect(db_path)
+                self.logger.debug(f"Datenbankverbindung zu {db_path} hergestellt")
+                yield conn
+            except Exception as e:
+                self.logger.error(f"Fehler bei der Datenbankverbindung zu {db_path}: {e}")
+                raise
+            finally:
+                if conn:
+                    conn.close()
+                    self.logger.debug(f"Datenbankverbindung zu {db_path} geschlossen")
     
     def is_sqlite_file(self, file_path: str) -> bool:
         """
