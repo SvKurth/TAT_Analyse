@@ -30,6 +30,7 @@ from modules.overview_page import show_overview_page
 from modules.trade_table_page import show_trade_table_page
 from modules.metrics_page import show_metrics_page
 from modules.calendar_page import show_calendar_page
+from modules.monthly_calendar_page import show_monthly_calendar_page
 from modules.navigator_page import show_tat_navigator_page
 from modules.api_charts import test_api_connection
 
@@ -90,7 +91,7 @@ def main():
         # Seitenauswahl
         page = st.selectbox(
             "📱 Seite auswählen:",
-            ["📋 Übersicht", "📈 Trade-Tabelle", "📊 Metriken", "📅 Kalender", "🎯 TAT Tradenavigator"],
+            ["📋 Übersicht", "📈 Trade-Tabelle", "📊 Metriken", "📅 Kalender", "📅 Monatskalender", "🎯 TAT Tradenavigator"],
             key="page_selector"
         )
     
@@ -167,6 +168,8 @@ def show_page(page, data_loader, db_path):
             show_metrics_page(data_loader, db_path)
         elif page == "📅 Kalender":
             show_calendar_page(data_loader, db_path)
+        elif page == "📅 Monatskalender":
+            show_monthly_calendar_page(data_loader, db_path)
         elif page == "🎯 TAT Tradenavigator":
             show_tat_navigator_page(data_loader, db_path)
     except Exception as e:
