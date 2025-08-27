@@ -1,6 +1,0 @@
-[33ma953e66[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m)[m Add Commission column to Trade Navigator - combines Comission + CommissionClose from original trade table
-[33m080b2e1[m Implementiere zweistufiges Cache-System und füge Stop/Target-Spalte hinzu - v2.0
-[33m77601f7[m Implementiere API-Price-Cache für Performance-Verbesserung und entferne Test-Modus
-[33m0c547eb[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m)[m Fix: Behebe Chart-Fehler und füge Stoppreis-Funktionalität hinzu - Indentation-Fehler korrigiert - Plotly-Imports hinzugefügt - Stoppreis als horizontale Linie im Chart - Chart startet ab Trade-Eröffnung - Robuste Fehlerbehandlung für DataFrame-Indexierung
-[33m9fa9d25[m  Premium Capture Rate (PCR) Chart implementiert
-[33me66a225[m Optionspreis-Chart Verbesserungen: Absolutwerte für Short-Optionen, optimierte Zeitachse und Debug-Ausgaben entfernt
