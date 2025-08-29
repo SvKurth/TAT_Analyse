@@ -25,6 +25,10 @@ dashboard:
   open_browser: true
   # Headless-Modus (für Server)
   headless: false
+  # Zuletzt verwendete Datei automatisch laden
+  auto_load_last_file: true
+  # Pfad zur zuletzt verwendeten Datei
+  last_file_path: null
 
 # Analyse-Einstellungen
 analysis:

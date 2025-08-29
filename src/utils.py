@@ -9,6 +9,7 @@ import os
 from pathlib import Path
 from typing import Dict, Any, Optional
 import json
+import yaml
 
 
 def setup_logging(log_level: str = "INFO", log_file: Optional[str] = None) -> None:
@@ -157,9 +158,133 @@ def _create_directories(config: Dict[str, Any]) -> None:
     
     # Verzeichnisse erstellen
     for directory in directories:
-        if directory:
+        try:
             Path(directory).mkdir(parents=True, exist_ok=True)
             logging.debug(f"Verzeichnis erstellt/überprüft: {directory}")
+        except Exception as e:
+            logging.warning(f"Konnte Verzeichnis {directory} nicht erstellen: {e}")
+
+
+def load_yaml_config(config_file: str = "config/default.yaml") -> Dict[str, Any]:
+    """
+    Lädt die YAML-Konfiguration aus einer Datei.
+    
+    Args:
+        config_file: Pfad zur YAML-Konfigurationsdatei
+        
+    Returns:
+        Dictionary mit Konfigurationswerten
+    """
+    config = {}
+    
+    try:
+        if os.path.exists(config_file):
+            with open(config_file, 'r', encoding='utf-8') as file:
+                config = yaml.safe_load(file) or {}
+            logging.info(f"YAML-Konfiguration aus {config_file} geladen")
+        else:
+            logging.warning(f"Konfigurationsdatei {config_file} nicht gefunden")
+            config = {}
+    except Exception as e:
+        logging.error(f"Fehler beim Laden der YAML-Konfiguration: {e}")
+        config = {}
+    
+    return config
+
+
+def save_yaml_config(config: Dict[str, Any], config_file: str = "config/default.yaml") -> bool:
+    """
+    Speichert die YAML-Konfiguration in eine Datei.
+    
+    Args:
+        config: Konfigurationsdictionary
+        config_file: Pfad zur YAML-Konfigurationsdatei
+        
+    Returns:
+        True wenn erfolgreich gespeichert, False sonst
+    """
+    try:
+        # Verzeichnis erstellen, falls es nicht existiert
+        config_dir = Path(config_file).parent
+        config_dir.mkdir(parents=True, exist_ok=True)
+        
+        with open(config_file, 'w', encoding='utf-8') as file:
+            yaml.dump(config, file, default_flow_style=False, allow_unicode=True, indent=2)
+        
+        logging.info(f"YAML-Konfiguration in {config_file} gespeichert")
+        return True
+    except Exception as e:
+        logging.error(f"Fehler beim Speichern der YAML-Konfiguration: {e}")
+        return False
+
+
+def update_config_value(key_path: str, value: Any, config_file: str = "config/default.yaml") -> bool:
+    """
+    Aktualisiert einen einzelnen Wert in der YAML-Konfiguration.
+    
+    Args:
+        key_path: Pfad zum Wert (z.B. "dashboard.last_file_path")
+        value: Neuer Wert
+        config_file: Pfad zur YAML-Konfigurationsdatei
+        
+    Returns:
+        True wenn erfolgreich aktualisiert, False sonst
+    """
+    try:
+        # Konfiguration laden
+        config = load_yaml_config(config_file)
+        
+        # Wert in der verschachtelten Struktur setzen
+        keys = key_path.split('.')
+        current = config
+        
+        # Zum vorletzten Schlüssel navigieren
+        for key in keys[:-1]:
+            if key not in current:
+                current[key] = {}
+            current = current[key]
+        
+        # Wert setzen
+        current[keys[-1]] = value
+        
+        # Konfiguration speichern
+        return save_yaml_config(config, config_file)
+        
+    except Exception as e:
+        logging.error(f"Fehler beim Aktualisieren der Konfiguration: {e}")
+        return False
+
+
+def get_config_value(key_path: str, default: Any = None, config_file: str = "config/default.yaml") -> Any:
+    """
+    Holt einen einzelnen Wert aus der YAML-Konfiguration.
+    
+    Args:
+        key_path: Pfad zum Wert (z.B. "dashboard.last_file_path")
+        default: Standardwert falls der Schlüssel nicht gefunden wird
+        config_file: Pfad zur YAML-Konfigurationsdatei
+        
+    Returns:
+        Wert aus der Konfiguration oder Standardwert
+    """
+    try:
+        config = load_yaml_config(config_file)
+        
+        # Wert in der verschachtelten Struktur suchen
+        keys = key_path.split('.')
+        current = config
+        
+        for key in keys:
+            if isinstance(current, dict) and key in current:
+                current = current[key]
+            else:
+                return default
+        
+        return current
+        
+    except Exception as e:
+        logging.error(f"Fehler beim Abrufen des Konfigurationswerts: {e}")
+        return default
 
 
 def save_config(config: Dict[str, Any], config_file: str) -> None:

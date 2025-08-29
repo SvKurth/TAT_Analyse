@@ -94,7 +94,7 @@ def show_metrics_page(data_loader, db_path):
                 # Einheitlicher Anwenden-Button für alle Filter
                 col_apply, col_reset = st.columns([3, 1])
                 with col_apply:
-                    if st.button("🔍 Alle Filter anwenden", type="primary", use_container_width=True):
+                    if st.button("🔍 Filter anwenden", type="primary", use_container_width=True):
                         st.session_state.apply_filters = True
                         st.rerun()
                 
@@ -105,8 +105,12 @@ def show_metrics_page(data_loader, db_path):
                         st.session_state.apply_filters = False
                         st.rerun()
                 
-                # Filter anwenden wenn Button gedrückt wurde
-                if st.session_state.get('apply_filters', False):
+                # Alle Trades anzeigen wenn kein Filter aktiv ist
+                if not st.session_state.get('apply_filters', False):
+                    st.info("ℹ️ Alle Trades werden angezeigt. Klicken Sie 'Filter anwenden' um Datumsfilter zu aktivieren.")
+                    # Alle Trades werden angezeigt - keine Filterung
+                else:
+                    # Filter anwenden wenn Button gedrückt wurde
                     # Datumsspalte als datetime konvertieren
                     if trade_data[date_cols[0]].dtype == 'object':
                         trade_data[date_cols[0]] = pd.to_datetime(trade_data[date_cols[0]], errors='coerce')
@@ -271,31 +275,7 @@ def show_metrics_page(data_loader, db_path):
                     bottom_value = peak_value
                     bottom_date = peak_date
                 
-                # DEBUG: Alle wichtigen Daten anzeigen
-                st.info(f"""
-                **🔍 DEBUG Max Drawdown Berechnung:**
-                - Peak Index: {peak_idx}
-                - Peak Value: ${peak_value:,.2f}
-                - Peak Date: {peak_date}
-                - Bottom Index: {bottom_idx if 'bottom_idx' in locals() else 'N/A'}
-                - Bottom Value: ${bottom_value:,.2f}
-                - Bottom Date: {bottom_date}
-                - Max DD Index: {max_dd_idx}
-                - Max DD Date: {max_dd_date}
-                - Max DD Value: {max_drawdown:.1f}%
-                """)
-                
-                # Zeige die ersten 10 Zeilen der kumulativen P&L für Debugging
-                st.info(f"""
-                **📊 Erste 10 Zeilen der kumulativen P&L:**
-                {cumulative.head(10).to_string()}
-                """)
-                
-                # Zeige die ersten 10 Zeilen des Drawdowns für Debugging
-                st.info(f"""
-                **📉 Erste 10 Zeilen des Drawdowns:**
-                {drawdown.head(10).to_string()}
-                """)
+
             else:
                 peak_date = "N/A"
                 max_dd_date = "N/A"

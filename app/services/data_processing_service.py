@@ -22,6 +22,65 @@ class DataProcessingService:
         self.config = config
         self.logger = get_logger(__name__)
         
+    def fix_dateopened_issues(self, data: pd.DataFrame) -> pd.DataFrame:
+        """
+        Behebt Probleme mit der DateOpened-Spalte.
+        
+        Args:
+            data: DataFrame mit möglichen DateOpened-Problemen
+            
+        Returns:
+            Bereinigter DataFrame
+        """
+        try:
+            self.logger.info("Prüfe auf DateOpened-Probleme...")
+            
+            # Kopie der Daten erstellen
+            fixed_data = data.copy()
+            
+            # Prüfe auf doppelte Spaltennamen
+            duplicate_cols = fixed_data.columns[fixed_data.columns.duplicated()].tolist()
+            if duplicate_cols:
+                self.logger.warning(f"Doppelte Spaltennamen gefunden: {duplicate_cols}")
+                # Entferne doppelte Spalten
+                fixed_data = fixed_data.loc[:, ~fixed_data.columns.duplicated()]
+                self.logger.info("Doppelte Spalten entfernt")
+            
+            # Prüfe auf leere oder ungültige DateOpened-Spalten
+            dateopened_cols = [col for col in fixed_data.columns if 'dateopened' in col.lower()]
+            
+            for col in dateopened_cols:
+                try:
+                    # Prüfe ob die Spalte bereits als Datetime konvertiert wurde
+                    if pd.api.types.is_datetime64_any_dtype(fixed_data[col]):
+                        self.logger.info(f"DateOpened-Spalte {col} ist bereits als Datetime konvertiert")
+                        continue
+                    
+                    # Versuche .NET-Timestamp-Konvertierung
+                    try:
+                        fixed_data[col] = pd.to_datetime(
+                            (fixed_data[col] - 621355968000000000) / 10000000, 
+                            unit='s',
+                            errors='coerce'
+                        )
+                        self.logger.info(f"DateOpened-Spalte {col} als .NET-Timestamp konvertiert")
+                    except:
+                        # Fallback: Normale Datumskonvertierung
+                        fixed_data[col] = pd.to_datetime(fixed_data[col], errors='coerce')
+                        self.logger.info(f"DateOpened-Spalte {col} als normales Datum konvertiert")
+                        
+                except Exception as e:
+                    self.logger.warning(f"Konnte DateOpened-Spalte {col} nicht konvertieren: {e}")
+                    # Spalte als String belassen
+                    fixed_data[col] = fixed_data[col].astype(str)
+            
+            self.logger.info("DateOpened-Probleme behoben")
+            return fixed_data
+            
+        except Exception as e:
+            self.logger.error(f"Fehler beim Beheben der DateOpened-Probleme: {e}")
+            return data  # Bei Fehlern ursprüngliche Daten zurückgeben
+
     def format_trade_data(self, data: pd.DataFrame, primary_keys: Optional[List[str]] = None) -> pd.DataFrame:
         """
         Formatiert die geladenen Trade-Daten in ein einheitliches Format.

@@ -1,0 +1,5 @@
+[33meb03bc0[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m)[m  Projektverzeichnis aufgeräumt - überflüssige Dateien entfernt
+[33m772dabb[m[33m ([m[1;31morigin/main[m[33m, [m[1;31morigin/HEAD[m[33m)[m  TAT Navigator Performance-Optimierungen implementiert
+[33mb3ff7cb[m feat: Neue monatliche Kalenderseite hinzugefügt - Identisch zur täglichen Kalenderseite, aber mit monatlicher Verdichtung - 4x4 Grid Layout mit Quartalssummen - Jahresnavigation und erweiterte Statistiken - Monatsvergleich mit Vorjahr
+[33m4db488d[m README-Dokumentation aktualisiert: Neue Seitenstruktur, aktuelle Features und Projektstruktur
+[33m23a3505[m Verbesserte Kalender-Navigation: Monatssumme in Monatsstatistiken, größere/fettere Buttons, bessere Button-Erkennbarkeit

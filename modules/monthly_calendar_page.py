@@ -16,13 +16,12 @@ def show_monthly_calendar_page(data_loader, db_path):
     try:
         # Trade-Tabelle laden
         trade_data = data_loader.load_trade_table(db_path)
-        st.success(f"✅ Trade-Daten geladen: {len(trade_data)} Trades, {len(trade_data.columns)} Spalten")
         
         # Intelligente Spaltenerkennung
         profit_cols = [col for col in trade_data.columns if 'profit' in col.lower() or 'pnl' in col.lower() or 'gewinn' in col.lower()]
-        type_cols = [col for col in trade_data.columns if 'type' in col.lower() or 'typ' in col.lower()]
         strategy_cols = [col for col in trade_data.columns if 'strategy' in col.lower() or 'strategie' in col.lower()]
         date_cols = [col for col in trade_data.columns if 'date' in col.lower() or 'datum' in col.lower() or 'time' in col.lower() or 'opened' in col.lower() or 'closed' in col.lower()]
+        premium_cols = [col for col in trade_data.columns if 'premium' in col.lower() or 'prämie' in col.lower() or 'credit' in col.lower() or 'debit' in col.lower()]
         
         if not profit_cols or not date_cols:
             st.error("❌ Keine Profit- oder Datumsspalten gefunden")
@@ -31,7 +30,7 @@ def show_monthly_calendar_page(data_loader, db_path):
         profit_col = profit_cols[0]
         date_col = date_cols[0]
         
-        # Strategy-Filter
+        # Strategy-Filter mit Multi-Select
         if strategy_cols:
             strategy_col = strategy_cols[0]
             # Verfügbare Strategien ermitteln
@@ -39,18 +38,26 @@ def show_monthly_calendar_page(data_loader, db_path):
             available_strategies = sorted([str(s) for s in available_strategies if str(s) not in ['', 'None', 'nan', 'NaN']])
             
             if available_strategies:
-                # "Alle Strategien" Option hinzufügen
-                all_strategies = ["Alle Strategien"] + available_strategies
-                selected_strategy = st.selectbox(
-                    "🎯 Strategie auswählen:",
-                    all_strategies,
-                    key="monthly_strategy_filter"
+                # Session State für ausgewählte Strategien initialisieren
+                if 'selected_strategies_monthly' not in st.session_state:
+                    st.session_state.selected_strategies_monthly = available_strategies.copy()
+                
+                # Multi-Select für Strategien
+                selected_strategies = st.multiselect(
+                    "🎯 Strategien auswählen (alle ausgewählt = alle Trades):",
+                    available_strategies,
+                    default=st.session_state.selected_strategies_monthly,
+                    key="strategy_multiselect_monthly"
                 )
                 
-                # Daten nach Strategie filtern
-                if selected_strategy != "Alle Strategien":
-                    trade_data = trade_data[trade_data[strategy_col] == selected_strategy]
-                    st.info(f"📊 Gefiltert nach Strategie: **{selected_strategy}** ({len(trade_data)} Trades)")
+                # Session State aktualisieren
+                st.session_state.selected_strategies_monthly = selected_strategies
+                
+                # Daten nach ausgewählten Strategien filtern
+                if selected_strategies:
+                    trade_data = trade_data[trade_data[strategy_col].isin(selected_strategies)]
+                else:
+                    st.warning("⚠️ Keine Strategien ausgewählt - alle Trades werden angezeigt")
             else:
                 st.warning("⚠️ Keine Strategien in den Daten gefunden")
         else:
@@ -73,17 +80,79 @@ def show_monthly_calendar_page(data_loader, db_path):
             st.error("❌ Keine gültigen Daten für die Monatskalenderansicht verfügbar")
             return
         
-        # Nach Monat gruppieren und monatliche P&L berechnen
-        # Zuerst Jahr und Monat als separate Spalten hinzufügen
-        trade_data['year'] = trade_data[date_col].dt.year
-        trade_data['month'] = trade_data[date_col].dt.month
+        # Verwende die bereits vorhandenen Year/Month-Spalten
+        if 'Year' in trade_data.columns and 'Month' in trade_data.columns:
+            year_col_name = 'Year'
+            month_col_name = 'Month'
+            st.info("ℹ️ Verwende bestehende Year/Month-Spalten aus den Daten")
+        else:
+            st.error("❌ Keine Year/Month-Spalten in den Daten gefunden")
+            st.info("💡 Erwartete Spalten: 'Year' und 'Month'")
+            return
         
-        monthly_pnl = trade_data.groupby(['year', 'month']).agg({
+        # Prüfe ob die Spalten gültige Werte enthalten
+        if trade_data[year_col_name].isna().all() or trade_data[month_col_name].isna().all():
+            st.error("❌ Year/Month-Spalten enthalten keine gültigen Werte")
+            return
+        
+        st.info(f"✅ Jahr-Spalte: {year_col_name}, Monat-Spalte: {month_col_name}")
+        st.info(f"✅ Verfügbare Jahre: {sorted(trade_data[year_col_name].unique())}")
+        st.info(f"✅ Verfügbare Monate: {sorted(trade_data[month_col_name].unique())}")
+        
+        # Monatliche P&L berechnen
+        monthly_pnl = trade_data.groupby([year_col_name, month_col_name]).agg({
             profit_col: ['sum', 'count']
         }).reset_index()
         
         # Spaltennamen vereinfachen
         monthly_pnl.columns = ['year', 'month', 'monthly_pnl', 'trade_count']
+        
+        # Premium Capture Rate pro Monat berechnen
+        monthly_pnl['premium_capture_rate'] = 0.0
+        
+        if len(premium_cols) > 0:
+            premium_col = premium_cols[0]
+            try:
+                for idx, row in monthly_pnl.iterrows():
+                    current_year = row['year']
+                    current_month = row['month']
+                    
+                    month_trades = trade_data[
+                        (trade_data[year_col_name] == current_year) & 
+                        (trade_data[month_col_name] == current_month)
+                    ]
+                    
+                    if len(month_trades) > 0:
+                        # Prämien-Spalte bereinigen und als numerisch konvertieren
+                        month_trades_copy = month_trades.copy()
+                        month_trades_copy[premium_col] = month_trades_copy[premium_col].replace(['', 'None', 'nan', 'NaN'], pd.NA)
+                        month_trades_copy[premium_col] = pd.to_numeric(month_trades_copy[premium_col], errors='coerce')
+                        
+                        # Nur Trades mit gültigen Prämien-Werten
+                        valid_premium_trades = month_trades_copy.dropna(subset=[premium_col])
+                        
+                        if len(valid_premium_trades) > 0:
+                            # Total verkaufte Prämie (positive Prämien)
+                            sold_premiums = valid_premium_trades[valid_premium_trades[premium_col] > 0][premium_col].sum()
+                            
+                            # Total gekaufte Prämie (negative Prämien)
+                            bought_premiums = abs(valid_premium_trades[valid_premium_trades[premium_col] < 0][premium_col].sum())
+                            
+                            # Monats-P&L
+                            monthly_pnl_value = row['monthly_pnl']
+                            
+                            # Premium Capture Rate Formel: (P&L / (verkaufte - gekaufte Prämie)) * 100%
+                            net_premiums = sold_premiums - bought_premiums
+                            if net_premiums != 0:
+                                premium_capture = (monthly_pnl_value / net_premiums) * 100
+                                monthly_pnl.loc[idx, 'premium_capture_rate'] = premium_capture
+                            else:
+                                monthly_pnl.loc[idx, 'premium_capture_rate'] = 0.0
+            except Exception as e:
+                st.warning(f"⚠️ Warnung bei Premium Capture Rate Berechnung: {e}")
+                # Bei Fehlern alle PCR auf 0 setzen
+                monthly_pnl['premium_capture_rate'] = 0.0
+        
         monthly_pnl = monthly_pnl.sort_values(['year', 'month'])
         
         # Jahr-Navigation
@@ -120,18 +189,27 @@ def show_monthly_calendar_page(data_loader, db_path):
         # Jahressumme berechnen
         year_data = monthly_pnl[monthly_pnl['year'] == st.session_state.current_year_monthly]
         
-        year_total = year_data['monthly_pnl'].sum()
-        year_trades = year_data['trade_count'].sum()
+        if len(year_data) == 0:
+            st.warning(f"⚠️ Keine Daten für das Jahr {st.session_state.current_year_monthly} gefunden")
+            year_data = pd.DataFrame(columns=['year', 'month', 'monthly_pnl', 'trade_count', 'premium_capture_rate'])
         
-        # CSS für Monatskalender - Vereinfacht und größer
+        year_total = year_data['monthly_pnl'].sum() if len(year_data) > 0 else 0
+        year_trades = year_data['trade_count'].sum() if len(year_data) > 0 else 0
+        
+        # Jahressumme anzeigen
+        st.markdown("---")
+        st.subheader("📊 Jahresstatistiken")
+        st.markdown(f"### 💰 Jahressumme: ${year_total:,.2f} ({year_trades} Trades)")
+        
+        # CSS für Monatskalender
         st.markdown("""
         <style>
         .monthly-calendar-month {
-            min-height: 150px;
-            height: 150px;
-            padding: 15px;
+            min-height: 120px;
+            height: 120px;
+            padding: 10px;
             border: 2px solid #dee2e6;
-            border-radius: 10px;
+            border-radius: 8px;
             background-color: white;
             position: relative;
             text-align: center;
@@ -139,12 +217,10 @@ def show_monthly_calendar_page(data_loader, db_path):
             flex-direction: column;
             justify-content: space-between;
             box-sizing: border-box;
-            margin: 5px;
+            margin: 3px;
         }
         .monthly-calendar-month.empty {
             background-color: #f8f9fa;
-            min-height: 150px;
-            height: 150px;
         }
         .monthly-calendar-month.positive {
             background-color: #d4edda;
@@ -156,92 +232,55 @@ def show_monthly_calendar_page(data_loader, db_path):
             border-color: #dc3545;
             border-width: 3px;
         }
-        .monthly-calendar-month.quarter {
-            background-color: #e3f2fd !important;
-            border-color: #2196f3 !important;
-            border-width: 4px;
-        }
         .month-name {
             font-weight: bold;
-            font-size: 20px;
-            margin-bottom: 10px;
+            font-size: 16px;
+            margin-bottom: 5px;
             color: #495057;
         }
         .monthly-pnl {
-            font-size: 24px;
+            font-size: 18px;
             font-weight: bold;
-            margin-bottom: 10px;
+            margin-bottom: 5px;
             color: #000;
         }
         .trade-count {
-            font-size: 16px;
+            font-size: 12px;
             color: #6c757d;
             font-weight: bold;
+            margin-bottom: 2px;
         }
-        .quarter-summary {
-            background-color: #fff3cd !important;
-            border-color: #ffc107 !important;
-            border-width: 4px;
+        .premium-capture {
+            font-size: 11px;
+            color: #495057;
+            font-weight: bold;
         }
-        .quarter-summary .month-name {
-            font-size: 24px;
-        }
-        /* Prominenter Jahresheader */
         .year-header {
-            font-size: 48px;
+            font-size: 36px;
             font-weight: bold;
             color: #2c3e50;
             text-align: left;
-            padding: 25px;
+            padding: 20px;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: white;
-            border-radius: 15px;
-            box-shadow: 0 6px 20px rgba(0,0,0,0.3);
-            text-shadow: 2px 2px 4px rgba(0,0,0,0.4);
-            margin: 15px 0;
-            letter-spacing: 3px;
+            border-radius: 10px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.3);
+            margin: 10px 0;
+            letter-spacing: 2px;
             width: 100%;
             display: block;
         }
-        /* Große Navigation-Buttons */
         .stButton > button {
-            font-size: 28px !important;
-            font-weight: 900 !important;
-            padding: 25px 30px !important;
-            height: 150px !important;
-            min-height: 150px !important;
-            border-radius: 20px !important;
-            border: 5px solid #4a5568 !important;
+            font-size: 18px !important;
+            font-weight: bold !important;
+            padding: 15px 20px !important;
+            height: 80px !important;
+            border-radius: 10px !important;
+            border: 3px solid #4a5568 !important;
             background: linear-gradient(135deg, #ff6b6b 0%, #ee5a24 100%) !important;
             color: white !important;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.4) !important;
-            transition: all 0.3s ease !important;
-            display: flex !important;
-            align-items: center !important;
-            justify-content: center !important;
-            cursor: pointer !important;
-            position: relative !important;
-            overflow: hidden !important;
-        }
-        
-        .stButton > button::before {
-            content: '' !important;
-            position: absolute !important;
-            top: 0 !important;
-            left: -100% !important;
-            width: 100% !important;
-            height: 100% !important;
-            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent) !important;
-            transition: left 0.5s !important;
-        }
-        
-        .stButton > button:hover::before {
-            left: 100% !important;
-        }
-        .stButton > button:hover {
-            transform: translateY(-3px) !important;
-            box-shadow: 0 8px 25px rgba(0,0,0,0.4) !important;
-            border-color: #ee5a24 !important;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.3) !important;
         }
         </style>
         """, unsafe_allow_html=True)
@@ -267,13 +306,15 @@ def show_monthly_calendar_page(data_loader, db_path):
                         if len(month_data) > 0:
                             monthly_pnl_value = month_data.iloc[0]['monthly_pnl']
                             trade_count = month_data.iloc[0]['trade_count']
+                            premium_capture = month_data.iloc[0]['premium_capture_rate']
                             
                             # CSS-Klasse basierend auf P&L
                             css_class = "positive" if monthly_pnl_value > 0 else "negative"
                             
-                            # Monatsdetails
-                            pnl_text = f"${monthly_pnl_value:,.2f}" if monthly_pnl_value != 0 else "$0"
+                            # Monatsdetails - P&L, Anzahl Trades und Premium Capture Rate
+                            pnl_text = f"${monthly_pnl_value:,.0f}" if monthly_pnl_value != 0 else "$0"
                             trade_text = f"{trade_count} Trade{'s' if trade_count != 1 else ''}"
+                            premium_text = f"PCR: {premium_capture:.1f}%" if premium_capture != 0 else "PCR: N/A"
                             
                             # HTML für den Monat
                             month_html = f"""
@@ -281,6 +322,7 @@ def show_monthly_calendar_page(data_loader, db_path):
                                 <div class="month-name">{month_names[month_num - 1]}</div>
                                 <div class="monthly-pnl">{pnl_text}</div>
                                 <div class="trade-count">{trade_text}</div>
+                                <div class="premium-capture">{premium_text}</div>
                             </div>
                             """
                             st.markdown(month_html, unsafe_allow_html=True)
@@ -311,9 +353,9 @@ def show_monthly_calendar_page(data_loader, db_path):
                     
                     quarter_css_class = "positive" if quarter_pnl > 0 else "negative"
                     quarter_html = f"""
-                    <div class="monthly-calendar-month {quarter_css_class} quarter-summary">
+                    <div class="monthly-calendar-month {quarter_css_class}">
                         <div class="month-name">Q{row + 1}</div>
-                        <div class="monthly-pnl">${quarter_pnl:,.2f}</div>
+                        <div class="monthly-pnl">${quarter_pnl:,.0f}</div>
                         <div class="trade-count">{quarter_trades} Trade{'s' if quarter_trades != 1 else ''}</div>
                     </div>
                     """
@@ -323,39 +365,6 @@ def show_monthly_calendar_page(data_loader, db_path):
             
             # Abstand zwischen den Reihen
             st.markdown("---")
-        
-        # Zusätzliche Statistiken
-        st.markdown("---")
-        st.subheader("📊 Jahresstatistiken")
-        
-        # Jahressumme prominent anzeigen
-        st.markdown(f"### 💰 Jahressumme: ${year_total:,.2f} ({year_trades} Trades)")
-        st.markdown("---")
-        
-        col1, col2, col3, col4 = st.columns(4)
-        
-        with col1:
-            positive_months = year_data[year_data['monthly_pnl'] > 0]
-            negative_months = year_data[year_data['monthly_pnl'] < 0]
-            
-            st.metric("Positive Monate", len(positive_months))
-        
-        with col2:
-            st.metric("Negative Monate", len(negative_months))
-        
-        with col3:
-            if len(positive_months) > 0:
-                avg_positive = positive_months['monthly_pnl'].mean()
-                st.metric("Ø Positiver Monat", f"${avg_positive:,.2f}")
-            else:
-                st.metric("Ø Positiver Monat", "$0.00")
-        
-        with col4:
-            if len(negative_months) > 0:
-                avg_negative = negative_months['monthly_pnl'].mean()
-                st.metric("Ø Negativer Monat", f"${avg_negative:,.2f}")
-            else:
-                st.metric("Ø Negativer Monat", "$0.00")
         
         # Quartalszusammenfassung
         st.markdown("---")
@@ -411,3 +420,25 @@ def show_monthly_calendar_page(data_loader, db_path):
     except Exception as e:
         st.error(f"❌ Fehler beim Laden der Monatskalenderansicht: {e}")
         st.info("💡 Bitte stellen Sie sicher, dass die Trade-Tabelle verfügbar ist.")
+        
+        # Debug-Informationen
+        st.info("🔍 Debug-Informationen:")
+        st.info(f"Fehlertyp: {type(e).__name__}")
+        st.info(f"Fehlermeldung: {str(e)}")
+        
+        try:
+            if 'data_loader' in locals() and 'db_path' in locals():
+                st.info("Versuche Daten zu laden...")
+                trade_data = data_loader.load_trade_table(db_path)
+                st.info(f"Geladene Daten: {len(trade_data)} Zeilen, {len(trade_data.columns)} Spalten")
+                st.info(f"Spaltennamen: {list(trade_data.columns)}")
+                
+                if 'Year' in trade_data.columns and 'Month' in trade_data.columns:
+                    st.info("✅ Year/Month-Spalten gefunden")
+                    st.info(f"Year-Datentyp: {trade_data['Year'].dtype}")
+                    st.info(f"Month-Datentyp: {trade_data['Month'].dtype}")
+                    st.info(f"Verfügbare Jahre: {sorted(trade_data['Year'].unique())}")
+                    st.info(f"Verfügbare Monate: {sorted(trade_data['Month'].unique())}")
+                
+        except Exception as debug_e:
+            st.error(f"Debug-Fehler: {debug_e}")

@@ -410,7 +410,7 @@ def show_tat_navigator_page(data_loader, db_path):
                 # Filter-Buttons
                 col_apply, col_reset = st.columns([3, 1])
                 with col_apply:
-                    if st.button("🔍 Alle Filter anwenden", type="primary", use_container_width=True, key="apply_filters_nav"):
+                    if st.button("🔍 Filter anwenden", type="primary", use_container_width=True, key="apply_filters_nav"):
                         st.session_state.filters_applied_nav = True
                         st.rerun()
                 
@@ -426,8 +426,12 @@ def show_tat_navigator_page(data_loader, db_path):
                         st.session_state.filters_applied_nav = False
                         st.rerun()
                 
-                # Filter anwenden
-                if st.session_state.get('filters_applied_nav', False):
+                # Alle Trades anzeigen wenn kein Filter aktiv ist
+                if not st.session_state.get('filters_applied_nav', False):
+                    st.info("ℹ️ Alle Trades werden angezeigt. Klicken Sie 'Filter anwenden' um Datumsfilter zu aktivieren.")
+                    # Alle Trades werden angezeigt - keine Filterung
+                else:
+                    # Filter anwenden
                     if trade_data[date_cols[0]].dtype == 'object':
                         trade_data[date_cols[0]] = pd.to_datetime(trade_data[date_cols[0]], errors='coerce')
                     
@@ -471,7 +475,7 @@ def show_tat_navigator_page(data_loader, db_path):
                         
                         # Status Filter
                         if st.session_state.get('status_filter', []):
-                            selected_status_values = [item[0] for item in st.session_state.status_filter]
+                            selected_status_values = [item[0] for item in st.session_state.get('status_filter', [])]
                             # Suche nach Status-Spalte (mit oder ohne Emoji)
                             status_col = None
                             for col in trade_data_filtered.columns:

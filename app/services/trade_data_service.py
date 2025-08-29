@@ -92,8 +92,21 @@ class TradeDataService:
                 self.logger.warning(f"Trade-Tabelle '{trade_table}' hat keine Spalten")
                 return data  # DataFrame ohne Spalten zurückgeben
             
+            # Prüfe ob DateOpened-Spalte bereits existiert und Probleme verursacht
+            if 'DateOpened' in data.columns:
+                self.logger.info("DateOpened-Spalte gefunden - prüfe auf Duplikate")
+                
+                # Verwende die spezielle Funktion zum Beheben von DateOpened-Problemen
+                data = self.data_processing_service.fix_dateopened_issues(data)
+            
             # Daten formatieren
-            formatted_data = self.data_processing_service.format_trade_data(data, primary_keys)
+            try:
+                formatted_data = self.data_processing_service.format_trade_data(data, primary_keys)
+            except Exception as format_error:
+                self.logger.error(f"Fehler beim Formatieren der Daten: {format_error}")
+                # Fallback: Verwende unformatierte Daten
+                self.logger.warning("Verwende unformatierte Daten als Fallback")
+                formatted_data = data
             
             # Prüfe ob formatierte Daten gültig sind
             if formatted_data is None:
