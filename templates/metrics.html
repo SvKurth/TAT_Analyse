@@ -1,0 +1,423 @@
+{% extends "base.html" %}
+
+{% block title %}Metriken - TAT Analyse Tool{% endblock %}
+
+{% block content %}
+{% if data is defined and data is not none %}
+<div class="row">
+    <div class="col-12">
+        <div class="main-content">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <div>
+                    <h2 class="fw-bold text-primary mb-2">
+                        <i class="fas fa-chart-line me-3"></i>
+                        Trade-Metriken
+                    </h2>
+                    <p class="text-muted mb-0">
+                        Detaillierte Analysen und Kennzahlen Ihrer Trades
+                    </p>
+                </div>
+                <div>
+                    <a href="{{ url_for('dashboard') }}" class="btn btn-outline-primary me-2">
+                        <i class="fas fa-tachometer-alt me-2"></i>Dashboard
+                    </a>
+                    <a href="{{ url_for('trade_table') }}" class="btn btn-outline-primary">
+                        <i class="fas fa-table me-2"></i>Trade-Tabelle
+                    </a>
+                </div>
+            </div>
+
+            <!-- Key Performance Indicators -->
+            <div class="row g-4 mb-5">
+                <div class="col-md-6 col-lg-3">
+                    <div class="stats-card bg-success text-white">
+                        <div class="stats-number">
+                            {% if data is defined and data is not none %}
+                                {{ (data['ProfitLoss'].sum() if 'ProfitLoss' in data.columns else 0) | round(2) }}
+                            {% else %}
+                                0
+                            {% endif %}
+                        </div>
+                        <div class="stats-label">Gesamtgewinn/-verlust</div>
+                    </div>
+                </div>
+                
+                <div class="col-md-6 col-lg-3">
+                    <div class="stats-card bg-info text-white">
+                        <div class="stats-number">
+                            {% if data is defined and data is not none %}
+                                {{ (data['ProfitLossNet'].sum() if 'ProfitLossNet' in data.columns else 0) | round(2) }}
+                            {% else %}
+                                0
+                            {% endif %}
+                        </div>
+                        <div class="stats-label">Netto-Gewinn/-verlust</div>
+                    </div>
+                </div>
+                
+                <div class="col-md-6 col-lg-3">
+                    <div class="stats-card bg-warning text-white">
+                        <div class="stats-number">
+                            {% if data is defined and data is not none %}
+                                {{ (data['Commission'].sum() if 'Commission' in data.columns else 0) | round(2) }}
+                            {% else %}
+                                0
+                            {% endif %}
+                        </div>
+                        <div class="stats-label">Gesamtkommissionen</div>
+                    </div>
+                </div>
+                
+                <div class="col-md-6 col-lg-3">
+                    <div class="stats-card bg-primary text-white">
+                        <div class="stats-number">
+                            {% if data is defined and data is not none %}
+                                {{ (data['TotalPremium'].sum() if 'TotalPremium' in data.columns else 0) | round(2) }}
+                            {% else %}
+                                0
+                            {% endif %}
+                        </div>
+                        <div class="stats-label">Gesamtprämien</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Trade Performance Analysis -->
+            <div class="row mb-5">
+                <div class="col-lg-8">
+                    <div class="card">
+                        <div class="card-header">
+                            <h4 class="mb-0">
+                                <i class="fas fa-chart-bar me-2"></i>
+                                Trade-Performance Analyse
+                            </h4>
+                        </div>
+                        <div class="card-body">
+                            {% if data is defined and data is not none %}
+                            <div class="table-responsive">
+                                <table class="table table-hover">
+                                    <thead>
+                                        <tr>
+                                            <th>Metrik</th>
+                                            <th>Wert</th>
+                                            <th>Details</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr>
+                                            <td><strong>Gewinnrate</strong></td>
+                                            <td>
+                                                {% if 'ProfitLoss' in data.columns %}
+                                                    {% set profitable_trades = (data['ProfitLoss'] > 0).sum() %}
+                                                    {% set total_trades = data.shape[0] %}
+                                                    {{ ((profitable_trades / total_trades) * 100) | round(1) }}%
+                                                {% else %}
+                                                    N/A
+                                                {% endif %}
+                                            </td>
+                                            <td>
+                                                {% if 'ProfitLoss' in data.columns %}
+                                                    {{ (data['ProfitLoss'] > 0).sum() }} von {{ data.shape[0] }} Trades
+                                                {% endif %}
+                                            </td>
+                                        </tr>
+                                        <tr>
+                                            <td><strong>Durchschnittlicher Gewinn</strong></td>
+                                            <td>
+                                                {% if 'ProfitLoss' in data.columns %}
+                                                    {{ data[data['ProfitLoss'] > 0]['ProfitLoss'].mean() | round(2) if (data['ProfitLoss'] > 0).sum() > 0 else 0 }}
+                                                {% else %}
+                                                    N/A
+                                                {% endif %}
+                                            </td>
+                                            <td>Nur profitable Trades</td>
+                                        </tr>
+                                        <tr>
+                                            <td><strong>Durchschnittlicher Verlust</strong></td>
+                                            <td>
+                                                {% if 'ProfitLoss' in data.columns %}
+                                                    {{ data[data['ProfitLoss'] < 0]['ProfitLoss'].mean() | round(2) if (data['ProfitLoss'] < 0).sum() > 0 else 0 }}
+                                                {% else %}
+                                                    N/A
+                                                {% endif %}
+                                            </td>
+                                            <td>Nur verlustbringende Trades</td>
+                                        </tr>
+                                        <tr>
+                                            <td><strong>Risk/Reward Ratio</strong></td>
+                                            <td>
+                                                {% if 'ProfitLoss' in data.columns %}
+                                                    {% set avg_profit = data[data['ProfitLoss'] > 0]['ProfitLoss'].mean() if (data['ProfitLoss'] > 0).sum() > 0 else 0 %}
+                                                    {% set avg_loss = data[data['ProfitLoss'] < 0]['ProfitLoss'].mean() if (data['ProfitLoss'] < 0).sum() > 0 else 0 %}
+                                                    {% if avg_loss != 0 %}
+                                                        {{ (avg_profit / abs_value(avg_loss)) | round(2) }}
+                                                    {% else %}
+                                                        N/A
+                                                    {% endif %}
+                                                {% else %}
+                                                    N/A
+                                                {% endif %}
+                                            </td>
+                                            <td>Durchschnitt Gewinn / Durchschnitt Verlust</td>
+                                        </tr>
+                                        <tr>
+                                            <td><strong>Maximaler Gewinn</strong></td>
+                                            <td>
+                                                {% if 'ProfitLoss' in data.columns %}
+                                                    {{ data['ProfitLoss'].max() | round(2) }}
+                                                {% else %}
+                                                    N/A
+                                                {% endif %}
+                                            </td>
+                                            <td>Höchster Einzeltrade</td>
+                                        </tr>
+                                        <tr>
+                                            <td><strong>Maximaler Verlust</strong></td>
+                                            <td>
+                                                {% if 'ProfitLoss' in data.columns %}
+                                                    {{ data['ProfitLoss'].min() | round(2) }}
+                                                {% else %}
+                                                    N/A
+                                                {% endif %}
+                                            </td>
+                                            <td>Niedrigster Einzeltrade</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                            {% else %}
+                            <div class="text-center text-muted">
+                                <i class="fas fa-exclamation-triangle fa-3x mb-3"></i>
+                                <p>Keine Daten verfügbar</p>
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-lg-4">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5 class="mb-0">
+                                <i class="fas fa-info-circle me-2"></i>
+                                Strategie-Übersicht
+                            </h5>
+                        </div>
+                        <div class="card-body">
+                            {% if data is defined and data is not none and 'Strategy' in data.columns %}
+                            <div class="mb-3">
+                                <h6>Strategien</h6>
+                                {% set strategy_counts = data['Strategy'].value_counts() %}
+                                {% for strategy, count in strategy_counts.items() %}
+                                <div class="d-flex justify-content-between align-items-center mb-2">
+                                    <span class="badge bg-secondary">{{ strategy if strategy else 'Unbekannt' }}</span>
+                                    <span class="text-muted">{{ count }}</span>
+                                </div>
+                                {% endfor %}
+                            </div>
+                            {% endif %}
+                            
+                            {% if data is defined and data is not none and 'TradeType' in data.columns %}
+                            <div class="mb-3">
+                                <h6>Trade-Typen</h6>
+                                {% set type_counts = data['TradeType'].value_counts() %}
+                                {% for trade_type, count in type_counts.items() %}
+                                <div class="d-flex justify-content-between align-items-center mb-2">
+                                    <span class="badge bg-primary">{{ trade_type if trade_type else 'Unbekannt' }}</span>
+                                    <span class="text-muted">{{ count }}</span>
+                                </div>
+                                {% endfor %}
+                            </div>
+                            {% endif %}
+                            
+                            {% if data is defined and data is not none and 'Status' in data.columns %}
+                            <div>
+                                <h6>Trade-Status</h6>
+                                {% set status_counts = data['Status'].value_counts() %}
+                                {% for status, count in status_counts.items() %}
+                                <div class="d-flex justify-content-between align-items-center mb-2">
+                                    <span class="badge bg-info">{{ status if status else 'Unbekannt' }}</span>
+                                    <span class="text-muted">{{ count }}</span>
+                                </div>
+                                {% endfor %}
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Monthly Performance -->
+            {% if data is defined and data is not none and 'DateOpened' in data.columns %}
+            <div class="row mb-5">
+                <div class="col-12">
+                    <div class="card">
+                        <div class="card-header">
+                            <h4 class="mb-0">
+                                <i class="fas fa-calendar-alt me-2"></i>
+                                Monatliche Performance
+                            </h4>
+                        </div>
+                        <div class="card-body">
+                            <div id="monthlyPerformanceChart"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Risk Analysis -->
+            <div class="row">
+                <div class="col-lg-6">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5 class="mb-0">
+                                <i class="fas fa-shield-alt me-2"></i>
+                                Risiko-Analyse
+                            </h5>
+                        </div>
+                        <div class="card-body">
+                            {% if data is defined and data is not none %}
+                            <div class="mb-3">
+                                <h6>Drawdown-Analyse</h6>
+                                <div class="progress mb-2">
+                                    {% if 'ProfitLoss' in data.columns %}
+                                        {% set cumulative = data['ProfitLoss'].cumsum() %}
+                                        {% set max_drawdown = ((cumulative - cumulative.expanding().max()) / cumulative.expanding().max() * 100).min() %}
+                                        <div class="progress-bar bg-danger" role="progressbar" style="width: {{ abs_value(max_drawdown) }}%">
+{{ abs_value(max_drawdown) | round(1) }}%
+                                        </div>
+                                    {% endif %}
+                                </div>
+                                <small class="text-muted">Maximaler Drawdown</small>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <h6>Volatilität</h6>
+                                {% if 'ProfitLoss' in data.columns %}
+                                    <p class="mb-1"><strong>{{ data['ProfitLoss'].std() | round(2) }}</strong></p>
+                                    <small class="text-muted">Standardabweichung der Gewinne/Verluste</small>
+                                {% endif %}
+                            </div>
+                            
+                            <div>
+                                <h6>Sharpe Ratio</h6>
+                                {% if 'ProfitLoss' in data.columns %}
+                                    {% set returns = data['ProfitLoss'] / 100 %}  <!-- Vereinfachte Berechnung -->
+                                    {% set sharpe = returns.mean() / returns.std() if returns.std() > 0 else 0 %}
+                                    <p class="mb-1"><strong>{{ sharpe | round(3) }}</strong></p>
+                                    <small class="text-muted">Risiko-adjustierte Rendite</small>
+                                {% endif %}
+                            </div>
+                            {% else %}
+                            <div class="text-center text-muted">
+                                <i class="fas fa-exclamation-triangle fa-3x mb-3"></i>
+                                <p>Keine Daten verfügbar</p>
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-lg-6">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5 class="mb-0">
+                                <i class="fas fa-clock me-2"></i>
+                                Zeitliche Analyse
+                            </h5>
+                        </div>
+                        <div class="card-body">
+                            {% if data is defined and data is not none %}
+                            <div class="mb-3">
+                                <h6>Durchschnittliche Haltedauer</h6>
+                                {% if 'DateOpened' in data.columns and 'DateClosed' in data.columns %}
+                                    <p class="mb-1"><strong>Berechne...</strong></p>
+                                    <small class="text-muted">Zeit zwischen Öffnung und Schließung</small>
+                                {% else %}
+                                    <p class="mb-1"><strong>N/A</strong></p>
+                                    <small class="text-muted">Datumsspalten nicht verfügbar</small>
+                                {% endif %}
+                            </div>
+                            
+                            <div class="mb-3">
+                                <h6>Beste Handelszeiten</h6>
+                                {% if 'ExitHour' in data.columns %}
+                                    {% set hour_counts = data['ExitHour'].value_counts().head(3) %}
+                                    {% for hour, count in hour_counts.items() %}
+                                    <div class="d-flex justify-content-between align-items-center mb-1">
+                                        <span>{{ hour }}:00 Uhr</span>
+                                        <span class="badge bg-primary">{{ count }}</span>
+                                    </div>
+                                    {% endfor %}
+                                {% else %}
+                                    <p class="text-muted">Stundendaten nicht verfügbar</p>
+                                {% endif %}
+                            </div>
+                            
+                            <div>
+                                <h6>Wochentag-Performance</h6>
+                                {% if 'DateOpened' in data.columns %}
+                                    <p class="text-muted">Berechne Wochentags-Statistiken...</p>
+                                {% else %}
+                                    <p class="text-muted">Datumsspalten nicht verfügbar</p>
+                                {% endif %}
+                            </div>
+                            {% else %}
+                            <div class="text-center text-muted">
+                                <i class="fas fa-exclamation-triangle fa-3x mb-3"></i>
+                                <p>Keine Daten verfügbar</p>
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% else %}
+<div class="row justify-content-center">
+    <div class="col-lg-6">
+        <div class="main-content text-center">
+            <div class="mb-4">
+                <i class="fas fa-exclamation-triangle fa-5x text-warning"></i>
+            </div>
+            
+            <h2 class="h3 mb-3">Keine Daten geladen</h2>
+            <p class="lead text-muted mb-4">
+                Bitte laden Sie zuerst eine Datenbankdatei hoch, um die Metriken zu analysieren.
+            </p>
+            
+            <div class="d-grid gap-2 d-md-block">
+                <a href="{{ url_for('upload_file') }}" class="btn btn-primary btn-lg">
+                    <i class="fas fa-upload me-2"></i>
+                    Datei hochladen
+                </a>
+                <a href="{{ url_for('index') }}" class="btn btn-outline-primary btn-lg">
+                    <i class="fas fa-home me-2"></i>
+                    Zur Startseite
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // Load monthly performance chart when page loads
+    document.addEventListener('DOMContentLoaded', function() {
+        {% if data is defined and data is not none and 'DateOpened' in data.columns %}
+        loadMonthlyPerformanceChart();
+        {% endif %}
+    });
+
+    function loadMonthlyPerformanceChart() {
+        // This would load the monthly performance chart
+        // Implementation depends on your chart library
+        console.log('Loading monthly performance chart...');
+    }
+</script>
+{% endblock %}

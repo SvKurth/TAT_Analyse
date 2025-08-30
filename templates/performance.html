@@ -1,0 +1,815 @@
+{% extends "base.html" %}
+
+{% block title %}Performance Dashboard - TAT Analyse Tool{% endblock %}
+
+{% block content %}
+{% if data is defined and data is not none %}
+<div class="row">
+    <div class="col-12">
+        <div class="main-content">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <div>
+                    <h2 class="fw-bold text-primary mb-2">
+                        <i class="fas fa-tachometer-alt me-3"></i>
+                        Performance Dashboard
+                    </h2>
+                    <p class="text-muted mb-0">
+                        Umfassende Performance-Analyse und Kennzahlen
+                    </p>
+                </div>
+                <div>
+                    <a href="{{ url_for('dashboard') }}" class="btn btn-outline-primary me-2">
+                        <i class="fas fa-tachometer-alt me-2"></i>Dashboard
+                    </a>
+                    <a href="{{ url_for('metrics') }}" class="btn btn-outline-primary">
+                        <i class="fas fa-chart-line me-2"></i>Metriken
+                    </a>
+                </div>
+            </div>
+
+            <!-- Key Performance Indicators -->
+            <div class="row g-4 mb-5">
+                <div class="col-md-6 col-lg-3">
+                    <div class="stats-card bg-primary text-white">
+                        <div class="stats-number">
+                            {% if data is defined and data is not none %}
+                                {{ (data['ProfitLoss'].sum() if 'ProfitLoss' in data.columns else 0) | round(2) }}
+                            {% else %}
+                                0
+                            {% endif %}
+                        </div>
+                        <div class="stats-label">Gesamtgewinn/-verlust</div>
+                    </div>
+                </div>
+                
+                <div class="col-md-6 col-lg-3">
+                    <div class="stats-card bg-success text-white">
+                        <div class="stats-number">
+                            {% if data is defined and data is not none %}
+                                {% set profitable_trades = (data['ProfitLoss'] > 0).sum() %}
+                                {% set total_trades = data.shape[0] %}
+                                {{ ((profitable_trades / total_trades) * 100) | round(1) }}%
+                            {% else %}
+                                0%
+                            {% endif %}
+                        </div>
+                        <div class="stats-label">Gewinnrate</div>
+                    </div>
+                </div>
+                
+                <div class="col-md-6 col-lg-3">
+                    <div class="stats-card bg-info text-white">
+                        <div class="stats-number">
+                            {% if data is defined and data is not none %}
+                                {% if 'ProfitLoss' in data.columns %}
+                                    {% set avg_profit = data[data['ProfitLoss'] > 0]['ProfitLoss'].mean() if (data['ProfitLoss'] > 0).sum() > 0 else 0 %}
+                                    {% set avg_loss = data[data['ProfitLoss'] < 0]['ProfitLoss'].mean() if (data['ProfitLoss'] < 0).sum() > 0 else 0 %}
+                                    {% if avg_loss != 0 %}
+                                        {{ (avg_profit / abs_value(avg_loss)) | round(2) }}
+                                    {% else %}
+                                        N/A
+                                    {% endif %}
+                                {% else %}
+                                    N/A
+                                {% endif %}
+                            {% else %}
+                                N/A
+                            {% endif %}
+                        </div>
+                        <div class="stats-label">Risk/Reward Ratio</div>
+                    </div>
+                </div>
+                
+                <div class="col-md-6 col-lg-3">
+                    <div class="stats-card bg-warning text-white">
+                        <div class="stats-number">
+                            {% if data is defined and data is not none %}
+                                {% if 'ProfitLoss' in data.columns %}
+                                    {% set returns = data['ProfitLoss'] / 100 %}
+                                    {% set sharpe = returns.mean() / returns.std() if returns.std() > 0 else 0 %}
+                                    {{ sharpe | round(3) }}
+                                {% else %}
+                                    N/A
+                                {% endif %}
+                            {% else %}
+                                N/A
+                            {% endif %}
+                        </div>
+                        <div class="stats-label">Sharpe Ratio</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Performance Charts -->
+            <div class="row mb-5">
+                <div class="col-lg-8">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5 class="mb-0">
+                                <i class="fas fa-chart-line me-2"></i>
+                                Kumulative Performance
+                            </h5>
+                        </div>
+                        <div class="card-body">
+                            <div id="cumulativePerformanceChart"></div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-lg-4">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5 class="mb-0">
+                                <i class="fas fa-chart-pie me-2"></i>
+                                Performance-Verteilung
+                            </h5>
+                        </div>
+                        <div class="card-body">
+                            <div id="performanceDistributionChart"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Monthly Performance Analysis -->
+            <div class="row mb-5">
+                <div class="col-12">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5 class="mb-0">
+                                <i class="fas fa-calendar-alt me-2"></i>
+                                Monatliche Performance-Analyse
+                            </h5>
+                        </div>
+                        <div class="card-body">
+                            <div id="monthlyPerformanceChart"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Risk Analysis -->
+            <div class="row mb-5">
+                <div class="col-lg-6">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5 class="mb-0">
+                                <i class="fas fa-shield-alt me-2"></i>
+                                Risiko-Analyse
+                            </h5>
+                        </div>
+                        <div class="card-body">
+                            <div id="riskAnalysisChart"></div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-lg-6">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5 class="mb-0">
+                                <i class="fas fa-chart-bar me-2"></i>
+                                Drawdown-Analyse
+                            </h5>
+                        </div>
+                        <div class="card-body">
+                            <div id="drawdownChart"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Strategy Performance -->
+            <div class="row mb-5">
+                <div class="col-12">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5 class="mb-0">
+                                <i class="fas fa-chess me-2"></i>
+                                Strategie-Performance im Detail
+                            </h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="table-responsive">
+                                <table class="table table-hover" id="strategyPerformanceTable">
+                                    <thead>
+                                        <tr>
+                                            <th>Strategie</th>
+                                            <th>Anzahl Trades</th>
+                                            <th>Gewinnrate</th>
+                                            <th>Durchschnittlicher Gewinn</th>
+                                            <th>Durchschnittlicher Verlust</th>
+                                            <th>Risk/Reward</th>
+                                            <th>Gesamtgewinn</th>
+                                            <th>Performance-Score</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="strategyPerformanceTableBody">
+                                        <!-- Strategy performance data will be loaded here -->
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Performance Insights -->
+            <div class="row">
+                <div class="col-lg-8">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5 class="mb-0">
+                                <i class="fas fa-lightbulb me-2"></i>
+                                Performance-Erkenntnisse
+                            </h5>
+                        </div>
+                        <div class="card-body">
+                            <div id="performanceInsights">
+                                <!-- Performance insights will be loaded here -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-lg-4">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5 class="mb-0">
+                                <i class="fas fa-trophy me-2"></i>
+                                Top-Performer
+                            </h5>
+                        </div>
+                        <div class="card-body">
+                            <div id="topPerformers">
+                                <!-- Top performers will be loaded here -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% else %}
+<div class="row justify-content-center">
+    <div class="col-lg-6">
+        <div class="main-content text-center">
+            <div class="mb-4">
+                <i class="fas fa-exclamation-triangle fa-5x text-warning"></i>
+            </div>
+            
+            <h2 class="h3 mb-3">Keine Daten geladen</h2>
+            <p class="lead text-muted mb-4">
+                Bitte laden Sie zuerst eine Datenbankdatei hoch, um das Performance Dashboard zu nutzen.
+            </p>
+            
+            <div class="d-grid gap-2 d-md-block">
+                <a href="{{ url_for('upload_file') }}" class="btn btn-primary btn-lg">
+                    <i class="fas fa-upload me-2"></i>
+                    Datei hochladen
+                </a>
+                <a href="{{ url_for('index') }}" class="btn btn-outline-primary btn-lg">
+                    <i class="fas fa-home me-2"></i>
+                    Zur Startseite
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<!-- Chart.js -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<script>
+    let performanceData = null;
+    
+    document.addEventListener('DOMContentLoaded', function() {
+        {% if data is defined and data is not none %}
+        loadPerformanceData();
+        {% endif %}
+    });
+
+    function loadPerformanceData() {
+        {% if data is defined and data is not none %}
+        const tradeData = {{ data.to_dict('records') | tojson }};
+        performanceData = tradeData;
+        
+        updateCharts();
+        updateStrategyPerformanceTable();
+        updatePerformanceInsights();
+        updateTopPerformers();
+        {% endif %}
+    }
+
+    function updateCharts() {
+        updateCumulativePerformanceChart();
+        updatePerformanceDistributionChart();
+        updateMonthlyPerformanceChart();
+        updateRiskAnalysisChart();
+        updateDrawdownChart();
+    }
+
+    function updateCumulativePerformanceChart() {
+        const ctx = document.getElementById('cumulativePerformanceChart');
+        if (!ctx || !performanceData) return;
+        
+        // Calculate cumulative performance
+        const sortedTrades = performanceData
+            .filter(trade => trade.DateOpened || (trade.Year && trade.Month && trade.Day))
+            .sort((a, b) => {
+                const dateA = new Date(a.DateOpened || `${a.Year}-${a.Month}-${a.Day}`);
+                const dateB = new Date(b.DateOpened || `${b.Year}-${b.Month}-${b.Day}`);
+                return dateA - dateB;
+            });
+        
+        let cumulative = 0;
+        const labels = [];
+        const data = [];
+        
+        sortedTrades.forEach((trade, index) => {
+            cumulative += (trade.ProfitLoss || 0);
+            labels.push(`Trade ${index + 1}`);
+            data.push(cumulative);
+        });
+        
+        // Create or update chart
+        if (window.cumulativeChart) {
+            window.cumulativeChart.destroy();
+        }
+        
+        window.cumulativeChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: 'Kumulativer Gewinn/Verlust',
+                    data: data,
+                    borderColor: '#007bff',
+                    backgroundColor: 'rgba(0, 123, 255, 0.1)',
+                    fill: true,
+                    tension: 0.1
+                }]
+            },
+            options: {
+                responsive: true,
+                plugins: {
+                    legend: {
+                        display: false
+                    },
+                    title: {
+                        display: true,
+                        text: 'Kumulative Performance über Zeit'
+                    }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        title: {
+                            display: true,
+                            text: 'Gewinn/Verlust'
+                        }
+                    },
+                    x: {
+                        title: {
+                            display: true,
+                            text: 'Trade Nummer'
+                        }
+                    }
+                }
+            }
+        });
+    }
+
+    function updatePerformanceDistributionChart() {
+        const ctx = document.getElementById('performanceDistributionChart');
+        if (!ctx || !performanceData) return;
+        
+        // Calculate performance distribution
+        const profitableTrades = performanceData.filter(t => t.ProfitLoss > 0).length;
+        const lossTrades = performanceData.filter(t => t.ProfitLoss < 0).length;
+        const breakEvenTrades = performanceData.filter(t => t.ProfitLoss === 0).length;
+        
+        // Create or update chart
+        if (window.distributionChart) {
+            window.distributionChart.destroy();
+        }
+        
+        window.distributionChart = new Chart(ctx, {
+            type: 'doughnut',
+            data: {
+                labels: ['Gewinne', 'Verluste', 'Break-even'],
+                datasets: [{
+                    data: [profitableTrades, lossTrades, breakEvenTrades],
+                    backgroundColor: ['#28a745', '#dc3545', '#ffc107']
+                }]
+            },
+            options: {
+                responsive: true,
+                plugins: {
+                    legend: {
+                        position: 'bottom'
+                    }
+                }
+            }
+        });
+    }
+
+    function updateMonthlyPerformanceChart() {
+        const ctx = document.getElementById('monthlyPerformanceChart');
+        if (!ctx || !performanceData) return;
+        
+        // Group trades by month
+        const monthlyStats = {};
+        performanceData.forEach(trade => {
+            if (trade.Year && trade.Month) {
+                const key = `${trade.Year}-${trade.Month}`;
+                if (!monthlyStats[key]) {
+                    monthlyStats[key] = { profit: 0, count: 0 };
+                }
+                monthlyStats[key].profit += (trade.ProfitLoss || 0);
+                monthlyStats[key].count++;
+            }
+        });
+        
+        const labels = Object.keys(monthlyStats).sort();
+        const data = labels.map(key => monthlyStats[key].profit);
+        const counts = labels.map(key => monthlyStats[key].count);
+        
+        // Create or update chart
+        if (window.monthlyChart) {
+            window.monthlyChart.destroy();
+        }
+        
+        window.monthlyChart = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: labels.map(key => {
+                    const [year, month] = key.split('-');
+                    const monthNames = ['Jan', 'Feb', 'Mär', 'Apr', 'Mai', 'Jun', 
+                                      'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dez'];
+                    return `${monthNames[parseInt(month) - 1]} ${year}`;
+                }),
+                datasets: [{
+                    label: 'Monatlicher Gewinn/Verlust',
+                    data: data,
+                    backgroundColor: data.map(val => val >= 0 ? '#28a745' : '#dc3545'),
+                    borderColor: data.map(val => val >= 0 ? '#28a745' : '#dc3545'),
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                responsive: true,
+                plugins: {
+                    legend: {
+                        display: false
+                    },
+                    title: {
+                        display: true,
+                        text: 'Monatliche Performance'
+                    }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        title: {
+                            display: true,
+                            text: 'Gewinn/Verlust'
+                        }
+                    }
+                }
+            }
+        });
+    }
+
+    function updateRiskAnalysisChart() {
+        const ctx = document.getElementById('riskAnalysisChart');
+        if (!ctx || !performanceData) return;
+        
+        // Calculate risk metrics
+        const profits = performanceData.filter(t => t.ProfitLoss > 0).map(t => t.ProfitLoss);
+        const losses = performanceData.filter(t => t.ProfitLoss < 0).map(t => Math.abs(t.ProfitLoss));
+        
+        const avgProfit = profits.length > 0 ? profits.reduce((a, b) => a + b, 0) / profits.length : 0;
+        const avgLoss = losses.length > 0 ? losses.reduce((a, b) => a + b, 0) / losses.length : 0;
+        const maxProfit = profits.length > 0 ? Math.max(...profits) : 0;
+        const maxLoss = losses.length > 0 ? Math.max(...losses) : 0;
+        
+        // Create or update chart
+        if (window.riskChart) {
+            window.riskChart.destroy();
+        }
+        
+        window.riskChart = new Chart(ctx, {
+            type: 'radar',
+            data: {
+                labels: ['Ø Gewinn', 'Ø Verlust', 'Max Gewinn', 'Max Verlust', 'Risk/Reward'],
+                datasets: [{
+                    label: 'Risiko-Metriken',
+                    data: [
+                        avgProfit / Math.max(maxProfit, 1) * 100,
+                        avgLoss / Math.max(maxLoss, 1) * 100,
+                        100,
+                        avgLoss / Math.max(maxLoss, 1) * 100,
+                        Math.min(100, (avgProfit / Math.max(avgLoss, 1)) * 50)
+                    ],
+                    backgroundColor: 'rgba(54, 162, 235, 0.2)',
+                    borderColor: 'rgba(54, 162, 235, 1)',
+                    borderWidth: 2,
+                    pointBackgroundColor: 'rgba(54, 162, 235, 1)'
+                }]
+            },
+            options: {
+                responsive: true,
+                plugins: {
+                    legend: {
+                        display: false
+                    },
+                    title: {
+                        display: true,
+                        text: 'Risiko-Analyse'
+                    }
+                },
+                scales: {
+                    r: {
+                        beginAtZero: true,
+                        max: 100
+                    }
+                }
+            }
+        });
+    }
+
+    function updateDrawdownChart() {
+        const ctx = document.getElementById('drawdownChart');
+        if (!ctx || !performanceData) return;
+        
+        // Calculate drawdown
+        const sortedTrades = performanceData
+            .filter(trade => trade.DateOpened || (trade.Year && trade.Month && trade.Day))
+            .sort((a, b) => {
+                const dateA = new Date(a.DateOpened || `${a.Year}-${a.Month}-${a.Day}`);
+                const dateB = new Date(b.DateOpened || `${b.Year}-${b.Month}-${b.Day}`);
+                return dateA - dateB;
+            });
+        
+        let cumulative = 0;
+        let peak = 0;
+        const drawdowns = [];
+        
+        sortedTrades.forEach((trade, index) => {
+            cumulative += (trade.ProfitLoss || 0);
+            if (cumulative > peak) {
+                peak = cumulative;
+            }
+            const drawdown = peak > 0 ? ((peak - cumulative) / peak) * 100 : 0;
+            drawdowns.push(drawdown);
+        });
+        
+        const labels = drawdowns.map((_, index) => `Trade ${index + 1}`);
+        
+        // Create or update chart
+        if (window.drawdownChart) {
+            window.drawdownChart.destroy();
+        }
+        
+        window.drawdownChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: 'Drawdown (%)',
+                    data: drawdowns,
+                    borderColor: '#dc3545',
+                    backgroundColor: 'rgba(220, 53, 69, 0.1)',
+                    fill: true,
+                    tension: 0.1
+                }]
+            },
+            options: {
+                responsive: true,
+                plugins: {
+                    legend: {
+                        display: false
+                    },
+                    title: {
+                        display: true,
+                        text: 'Drawdown-Analyse'
+                    }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        title: {
+                            display: true,
+                            text: 'Drawdown (%)'
+                        }
+                    },
+                    x: {
+                        title: {
+                            display: true,
+                            text: 'Trade Nummer'
+                        }
+                    }
+                }
+            }
+        });
+    }
+
+    function updateStrategyPerformanceTable() {
+        if (!performanceData) return;
+        
+        const tbody = document.getElementById('strategyPerformanceTableBody');
+        tbody.innerHTML = '';
+        
+        // Group trades by strategy
+        const strategyStats = {};
+        performanceData.forEach(trade => {
+            const strategy = trade.Strategy || 'Unbekannt';
+            if (!strategyStats[strategy]) {
+                strategyStats[strategy] = {
+                    trades: [],
+                    count: 0,
+                    totalProfit: 0,
+                    profitableCount: 0
+                };
+            }
+            strategyStats[strategy].trades.push(trade);
+            strategyStats[strategy].count++;
+            strategyStats[strategy].totalProfit += (trade.ProfitLoss || 0);
+            if (trade.ProfitLoss > 0) {
+                strategyStats[strategy].profitableCount++;
+            }
+        });
+        
+        // Calculate metrics for each strategy
+        Object.entries(strategyStats).forEach(([strategy, stats]) => {
+            const winRate = (stats.profitableCount / stats.count) * 100;
+            const avgProfit = stats.trades.filter(t => t.ProfitLoss > 0).map(t => t.ProfitLoss);
+            const avgLoss = stats.trades.filter(t => t.ProfitLoss < 0).map(t => Math.abs(t.ProfitLoss));
+            
+            const avgProfitValue = avgProfit.length > 0 ? avgProfit.reduce((a, b) => a + b, 0) / avgProfit.length : 0;
+            const avgLossValue = avgLoss.length > 0 ? avgLoss.reduce((a, b) => a + b, 0) / avgLoss.length : 0;
+            const riskReward = avgLossValue > 0 ? avgProfitValue / avgLossValue : 0;
+            
+            // Calculate performance score (0-100)
+            const score = Math.min(100, Math.max(0, 
+                (winRate * 0.4) + 
+                (Math.min(riskReward * 20, 30)) + 
+                (Math.min(stats.totalProfit / 100, 30))
+            ));
+            
+            const row = document.createElement('tr');
+            row.innerHTML = `
+                <td><strong>${strategy}</strong></td>
+                <td>${stats.count}</td>
+                <td>${winRate.toFixed(1)}%</td>
+                <td class="text-success">${avgProfitValue.toFixed(2)}</td>
+                <td class="text-danger">${avgLossValue.toFixed(2)}</td>
+                <td>${riskReward.toFixed(2)}</td>
+                <td class="${stats.totalProfit >= 0 ? 'text-success' : 'text-danger'}">${stats.totalProfit.toFixed(2)}</td>
+                <td>
+                    <div class="progress" style="height: 20px;">
+                        <div class="progress-bar bg-${score >= 70 ? 'success' : score >= 40 ? 'warning' : 'danger'}" 
+                             role="progressbar" style="width: ${score}%">
+                            ${score.toFixed(0)}
+                        </div>
+                    </div>
+                </td>
+            `;
+            tbody.appendChild(row);
+        });
+    }
+
+    function updatePerformanceInsights() {
+        if (!performanceData) return;
+        
+        const insightsEl = document.getElementById('performanceInsights');
+        
+        // Calculate insights
+        const totalTrades = performanceData.length;
+        const profitableTrades = performanceData.filter(t => t.ProfitLoss > 0).length;
+        const totalProfit = performanceData.reduce((sum, t) => sum + (t.ProfitLoss || 0), 0);
+        const avgProfit = totalProfit / totalTrades;
+        const winRate = (profitableTrades / totalTrades) * 100;
+        
+        // Calculate volatility
+        const returns = performanceData.map(t => t.ProfitLoss || 0);
+        const volatility = Math.sqrt(returns.reduce((sum, val) => sum + Math.pow(val - avgProfit, 2), 0) / totalTrades);
+        
+        // Calculate max drawdown
+        let cumulative = 0;
+        let peak = 0;
+        let maxDrawdown = 0;
+        
+        performanceData.forEach(trade => {
+            cumulative += (trade.ProfitLoss || 0);
+            if (cumulative > peak) {
+                peak = cumulative;
+            }
+            const drawdown = peak > 0 ? ((peak - cumulative) / peak) * 100 : 0;
+            if (drawdown > maxDrawdown) {
+                maxDrawdown = drawdown;
+            }
+        });
+        
+        insightsEl.innerHTML = `
+            <div class="row">
+                <div class="col-md-6">
+                    <h6>Performance-Übersicht</h6>
+                    <ul class="list-unstyled">
+                        <li><strong>Gesamtgewinn/-verlust:</strong> ${totalProfit.toFixed(2)}</li>
+                        <li><strong>Gewinnrate:</strong> ${winRate.toFixed(1)}%</li>
+                        <li><strong>Durchschnittlicher Gewinn/Verlust:</strong> ${avgProfit.toFixed(2)}</li>
+                        <li><strong>Volatilität:</strong> ${volatility.toFixed(2)}</li>
+                    </ul>
+                </div>
+                <div class="col-md-6">
+                    <h6>Risiko-Metriken</h6>
+                    <ul class="list-unstyled">
+                        <li><strong>Maximaler Drawdown:</strong> ${maxDrawdown.toFixed(1)}%</li>
+                        <li><strong>Sharpe Ratio:</strong> ${(avgProfit / Math.max(volatility, 1)).toFixed(3)}</li>
+                        <li><strong>Anzahl Trades:</strong> ${totalTrades}</li>
+                        <li><strong>Durchschnittliche Haltedauer:</strong> Berechne...</li>
+                    </ul>
+                </div>
+            </div>
+            
+            <div class="row mt-3">
+                <div class="col-12">
+                    <h6>Empfehlungen</h6>
+                    <div class="alert alert-info">
+                        <ul class="mb-0">
+                            ${winRate > 60 ? '<li>✅ Hohe Gewinnrate - Strategie funktioniert gut</li>' : '<li>⚠️ Gewinnrate verbesserungswürdig - Strategie überprüfen</li>'}
+                            ${maxDrawdown < 20 ? '<li>✅ Geringer Drawdown - Risikomanagement funktioniert</li>' : '<li>⚠️ Hoher Drawdown - Risikomanagement verbessern</li>'}
+                            ${volatility < 100 ? '<li>✅ Geringe Volatilität - Stabile Performance</li>' : '<li>⚠️ Hohe Volatilität - Risiko reduzieren</li>'}
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+
+    function updateTopPerformers() {
+        if (!performanceData) return;
+        
+        const performersEl = document.getElementById('topPerformers');
+        
+        // Find top performers
+        const topTrades = performanceData
+            .filter(t => t.ProfitLoss > 0)
+            .sort((a, b) => (b.ProfitLoss || 0) - (a.ProfitLoss || 0))
+            .slice(0, 5);
+        
+        let performersHTML = '<h6>Top 5 Trades</h6>';
+        
+        if (topTrades.length > 0) {
+            topTrades.forEach((trade, index) => {
+                const medal = index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : '🏅';
+                performersHTML += `
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <span>${medal} Trade ${trade.TradeID || 'N/A'}</span>
+                        <span class="text-success fw-bold">${(trade.ProfitLoss || 0).toFixed(2)}</span>
+                    </div>
+                `;
+            });
+        } else {
+            performersHTML += '<p class="text-muted">Keine gewinnbringenden Trades verfügbar.</p>';
+        }
+        
+        // Find best strategies
+        const strategyStats = {};
+        performanceData.forEach(trade => {
+            const strategy = trade.Strategy || 'Unbekannt';
+            if (!strategyStats[strategy]) {
+                strategyStats[strategy] = { profit: 0, count: 0 };
+            }
+            strategyStats[strategy].profit += (trade.ProfitLoss || 0);
+            strategyStats[strategy].count++;
+        });
+        
+        const topStrategies = Object.entries(strategyStats)
+            .sort(([,a], [,b]) => b.profit - a.profit)
+            .slice(0, 3);
+        
+        performersHTML += '<h6 class="mt-3">Top 3 Strategien</h6>';
+        
+        if (topStrategies.length > 0) {
+            topStrategies.forEach(([strategy, stats], index) => {
+                const medal = index === 0 ? '🥇' : index === 1 ? '🥈' : '🥉';
+                performersHTML += `
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <span>${medal} ${strategy}</span>
+                        <span class="${stats.profit >= 0 ? 'text-success' : 'text-danger'} fw-bold">${stats.profit.toFixed(2)}</span>
+                    </div>
+                `;
+            });
+        }
+        
+        performersEl.innerHTML = performersHTML;
+    }
+</script>
+{% endblock %}

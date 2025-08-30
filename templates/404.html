@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+
+{% block title %}Seite nicht gefunden - TAT Analyse Tool{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-lg-6">
+        <div class="main-content text-center">
+            <div class="mb-4">
+                <i class="fas fa-exclamation-triangle fa-5x text-warning"></i>
+            </div>
+            
+            <h1 class="display-1 fw-bold text-muted">404</h1>
+            <h2 class="h3 mb-3">Seite nicht gefunden</h2>
+            <p class="lead text-muted mb-4">
+                Die angeforderte Seite existiert leider nicht oder wurde verschoben.
+            </p>
+            
+            <div class="d-grid gap-2 d-md-block">
+                <a href="{{ url_for('index') }}" class="btn btn-primary btn-lg me-md-2">
+                    <i class="fas fa-home me-2"></i>
+                    Zur Startseite
+                </a>
+                <a href="{{ url_for('upload_file') }}" class="btn btn-outline-primary btn-lg">
+                    <i class="fas fa-upload me-2"></i>
+                    Datei hochladen
+                </a>
+            </div>
+            
+            <div class="mt-5">
+                <h5>Häufig verwendete Seiten:</h5>
+                <div class="row g-3 mt-3">
+                    <div class="col-md-4">
+                        <a href="{{ url_for('index') }}" class="text-decoration-none">
+                            <div class="card h-100">
+                                <div class="card-body text-center">
+                                    <i class="fas fa-home fa-2x text-primary mb-2"></i>
+                                    <h6>Startseite</h6>
+                                </div>
+                            </div>
+                        </a>
+                    </div>
+                    <div class="col-md-4">
+                        <a href="{{ url_for('upload_file') }}" class="text-decoration-none">
+                            <div class="card h-100">
+                                <div class="card-body text-center">
+                                    <i class="fas fa-upload fa-2x text-success mb-2"></i>
+                                    <h6>Upload</h6>
+                                </div>
+                            </div>
+                        </a>
+                    </div>
+                    <div class="col-md-4">
+                        <a href="#" onclick="history.back()" class="text-decoration-none">
+                            <div class="card h-100">
+                                <div class="card-body text-center">
+                                    <i class="fas fa-arrow-left fa-2x text-info mb-2"></i>
+                                    <h6>Zurück</h6>
+                                </div>
+                            </div>
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

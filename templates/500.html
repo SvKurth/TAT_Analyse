@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+
+{% block title %}Serverfehler - TAT Analyse Tool{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-lg-6">
+        <div class="main-content text-center">
+            <div class="mb-4">
+                <i class="fas fa-bug fa-5x text-danger"></i>
+            </div>
+            
+            <h1 class="display-1 fw-bold text-muted">500</h1>
+            <h2 class="h3 mb-3">Interner Serverfehler</h2>
+            <p class="lead text-muted mb-4">
+                Es ist ein unerwarteter Fehler aufgetreten. Bitte versuchen Sie es später erneut.
+            </p>
+            
+            <div class="alert alert-warning" role="alert">
+                <i class="fas fa-exclamation-triangle me-2"></i>
+                <strong>Hinweis:</strong> Falls das Problem weiterhin besteht, überprüfen Sie bitte:
+                <ul class="mb-0 mt-2 text-start">
+                    <li>Ist die hochgeladene Datei korrekt?</li>
+                    <li>Haben Sie ausreichend Speicherplatz?</li>
+                    <li>Ist die Datei nicht beschädigt?</li>
+                </ul>
+            </div>
+            
+            <div class="d-grid gap-2 d-md-block">
+                <a href="{{ url_for('index') }}" class="btn btn-primary btn-lg me-md-2">
+                    <i class="fas fa-home me-2"></i>
+                    Zur Startseite
+                </a>
+                <a href="{{ url_for('upload_file') }}" class="btn btn-outline-primary btn-lg">
+                    <i class="fas fa-upload me-2"></i>
+                    Erneut versuchen
+                </a>
+            </div>
+            
+            <div class="mt-5">
+                <h5>Mögliche Lösungen:</h5>
+                <div class="row g-3 mt-3">
+                    <div class="col-md-6">
+                        <div class="card h-100">
+                            <div class="card-body text-center">
+                                <i class="fas fa-refresh fa-2x text-primary mb-2"></i>
+                                <h6>Seite neu laden</h6>
+                                <small class="text-muted">Drücken Sie F5 oder aktualisieren Sie die Seite</small>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="card h-100">
+                            <div class="card-body text-center">
+                                <i class="fas fa-file-check fa-2x text-success mb-2"></i>
+                                <h6>Datei überprüfen</h6>
+                                <small class="text-muted">Stellen Sie sicher, dass die Datei gültig ist</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="mt-4">
+                <button class="btn btn-outline-secondary" onclick="location.reload()">
+                    <i class="fas fa-sync-alt me-2"></i>
+                    Seite neu laden
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

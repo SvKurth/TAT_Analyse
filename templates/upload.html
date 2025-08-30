@@ -1,0 +1,369 @@
+{% extends "base.html" %}
+
+{% block title %}Datei hochladen - TAT Analyse Tool{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="main-content">
+            <div class="text-center mb-4">
+                <h2 class="fw-bold text-primary">
+                    <i class="fas fa-upload me-3"></i>
+                    Datenbankdatei hochladen
+                </h2>
+                <p class="lead text-muted">
+                    Laden Sie Ihre SQLite-Datenbankdatei hoch, um mit der Analyse zu beginnen
+                </p>
+            </div>
+
+            <!-- Upload Form -->
+            <div class="row justify-content-center">
+                <div class="col-lg-8">
+                    <div class="card">
+                        <div class="card-header">
+                            <h4 class="mb-0">
+                                <i class="fas fa-database me-2"></i>
+                                Datei auswählen
+                            </h4>
+                        </div>
+                        <div class="card-body">
+                            <!-- Debug-Info -->
+                            <div class="alert alert-info mb-3">
+                                <strong>Debug-Info:</strong> 
+                                <ul class="mb-0">
+                                    <li>Form-Methode: POST</li>
+                                    <li>Action: {{ url_for('upload_file') }}</li>
+                                    <li>Enctype: multipart/form-data</li>
+                                </ul>
+                            </div>
+                            
+                            <form method="POST" enctype="multipart/form-data" id="uploadForm" action="{{ url_for('upload_file') }}">
+                                <div class="upload-area" id="uploadArea">
+                                    <div class="mb-3">
+                                        <i class="fas fa-cloud-upload-alt fa-4x text-primary mb-3"></i>
+                                        <h5>Datei hierher ziehen oder klicken zum Auswählen</h5>
+                                        <p class="text-muted">
+                                            Unterstützte Formate: .db, .db3, .sqlite, .sqlite3
+                                        </p>
+                                        <p class="text-muted">
+                                            Maximale Dateigröße: 100 MB
+                                        </p>
+                                    </div>
+                                    
+                                    <input type="file" 
+                                           name="file" 
+                                           id="fileInput" 
+                                           class="form-control" 
+                                           accept=".db,.db3,.sqlite,.sqlite3"
+                                           required
+                                           style="margin-bottom: 20px;">
+                                    
+                                    <div class="text-center mt-4">
+                                        <button type="submit" class="btn btn-success btn-lg" id="submitBtn">
+                                            <i class="fas fa-rocket me-2"></i>
+                                            Analyse starten
+                                        </button>
+                                    </div>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Supported Formats -->
+            <div class="row mt-5">
+                <div class="col-lg-6">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5 class="mb-0">
+                                <i class="fas fa-check-circle me-2"></i>
+                                Unterstützte Formate
+                            </h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-6">
+                                    <div class="d-flex align-items-center mb-2">
+                                        <i class="fas fa-database text-primary me-2"></i>
+                                        <span>.db</span>
+                                    </div>
+                                    <div class="d-flex align-items-center mb-2">
+                                        <i class="fas fa-database text-primary me-2"></i>
+                                        <span>.db3</span>
+                                    </div>
+                                </div>
+                                <div class="col-6">
+                                    <div class="d-flex align-items-center mb-2">
+                                        <i class="fas fa-database text-primary me-2"></i>
+                                        <span>.sqlite</span>
+                                    </div>
+                                    <div class="d-flex align-items-center mb-2">
+                                        <i class="fas fa-database text-primary me-2"></i>
+                                        <span>.sqlite3</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-lg-6">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5 class="mb-0">
+                                <i class="fas fa-info-circle me-2"></i>
+                                Wichtige Hinweise
+                            </h5>
+                        </div>
+                        <div class="card-body">
+                            <ul class="list-unstyled mb-0">
+                                <li class="mb-2">
+                                    <i class="fas fa-arrow-right text-primary me-2"></i>
+                                    Die Datei wird temporär gespeichert
+                                </li>
+                                <li class="mb-2">
+                                    <i class="fas fa-arrow-right text-primary me-2"></i>
+                                    Automatische Erkennung der Trade-Tabelle
+                                </li>
+                                <li class="mb-2">
+                                    <i class="fas fa-arrow-right text-primary me-2"></i>
+                                    Sichere Verarbeitung ohne Datenverlust
+                                </li>
+                                <li class="mb-2">
+                                    <i class="fas fa-arrow-right text-primary me-2"></i>
+                                    Unterstützung für große Datenbanken
+                                </li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Quick Actions -->
+            <div class="row mt-4">
+                <div class="col-12">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5 class="mb-0">
+                                <i class="fas fa-bolt me-2"></i>
+                                Schnellaktionen
+                            </h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-4 text-center">
+                                    <a href="{{ url_for('index') }}" class="btn btn-outline-primary">
+                                        <i class="fas fa-home me-2"></i>
+                                        Zurück zur Startseite
+                                    </a>
+                                </div>
+                                <div class="col-md-4 text-center">
+                                    <button type="button" class="btn btn-outline-info" onclick="showHelp()">
+                                        <i class="fas fa-question-circle me-2"></i>
+                                        Hilfe anzeigen
+                                    </button>
+                                </div>
+                                <div class="col-md-4 text-center">
+                                    <button type="button" class="btn btn-outline-secondary" onclick="showSampleData()">
+                                        <i class="fas fa-eye me-2"></i>
+                                        Beispieldaten
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Help Modal -->
+<div class="modal fade" id="helpModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-question-circle me-2"></i>
+                    Hilfe - Datei hochladen
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <h6>Schritt-für-Schritt-Anleitung:</h6>
+                <ol>
+                    <li>Klicken Sie auf "Datei auswählen" oder ziehen Sie eine Datei in den Upload-Bereich</li>
+                    <li>Wählen Sie eine SQLite-Datenbankdatei (.db, .db3, .sqlite, .sqlite3)</li>
+                    <li>Überprüfen Sie die Dateiinformationen</li>
+                    <li>Klicken Sie auf "Analyse starten"</li>
+                    <li>Das Tool lädt die Daten und leitet Sie zum Dashboard weiter</li>
+                </ol>
+                
+                <h6 class="mt-3">Häufige Probleme:</h6>
+                <ul>
+                    <li><strong>Datei zu groß:</strong> Maximale Größe ist 100 MB</li>
+                    <li><strong>Falsches Format:</strong> Nur SQLite-Dateien werden unterstützt</li>
+                    <li><strong>Beschädigte Datei:</strong> Stellen Sie sicher, dass die Datei nicht beschädigt ist</li>
+                </ul>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Schließen</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    const uploadArea = document.getElementById('uploadArea');
+    const fileInput = document.getElementById('fileInput');
+    const fileInfo = document.getElementById('fileInfo');
+    const fileName = document.getElementById('fileName');
+    const fileSize = document.getElementById('fileSize');
+    const submitBtn = document.getElementById('submitBtn');
+
+    // Drag and Drop functionality
+    uploadArea.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        uploadArea.style.borderColor = '#3498db';
+        uploadArea.style.background = 'rgba(52, 152, 219, 0.1)';
+    });
+
+    uploadArea.addEventListener('dragleave', (e) => {
+        e.preventDefault();
+        uploadArea.style.borderColor = '#3498db';
+        uploadArea.style.background = 'rgba(52, 152, 219, 0.05)';
+    });
+
+    uploadArea.addEventListener('drop', (e) => {
+        e.preventDefault();
+        uploadArea.style.borderColor = '#3498db';
+        uploadArea.style.background = 'rgba(52, 152, 219, 0.05)';
+        
+        const files = e.dataTransfer.files;
+        if (files.length > 0) {
+            fileInput.files = files;
+            handleFileSelect();
+        }
+    });
+
+    // File input change
+    fileInput.addEventListener('change', handleFileSelect);
+
+    function handleFileSelect() {
+        const file = fileInput.files[0];
+        if (file) {
+            // Validate file type
+            const validTypes = ['.db', '.db3', '.sqlite', '.sqlite3'];
+            const fileExtension = '.' + file.name.split('.').pop().toLowerCase();
+            
+            if (!validTypes.includes(fileExtension)) {
+                alert('Bitte wählen Sie eine gültige SQLite-Datei (.db, .db3, .sqlite, .sqlite3)');
+                clearFile();
+                return;
+            }
+            
+            // Validate file size (100MB)
+            if (file.size > 100 * 1024 * 1024) {
+                alert('Die Datei ist zu groß. Maximale Größe: 100 MB');
+                clearFile();
+                return;
+            }
+            
+            // Display file info
+            fileName.textContent = file.name;
+            fileSize.textContent = formatFileSize(file.size);
+            fileInfo.classList.remove('d-none');
+            submitBtn.disabled = false;
+            
+            // Update upload area
+            uploadArea.innerHTML = `
+                <div class="mb-3">
+                    <i class="fas fa-check-circle fa-4x text-success mb-3"></i>
+                    <h5>Datei ausgewählt!</h5>
+                    <p class="text-muted">Klicken Sie auf "Analyse starten" um fortzufahren</p>
+                </div>
+            `;
+        }
+    }
+
+    function clearFile() {
+        fileInput.value = '';
+        fileInfo.classList.add('d-none');
+        submitBtn.disabled = true;
+        
+        // Reset upload area
+        uploadArea.innerHTML = `
+            <div class="mb-3">
+                <i class="fas fa-cloud-upload-alt fa-4x text-primary mb-3"></i>
+                <h5>Datei hierher ziehen oder klicken zum Auswählen</h5>
+                <p class="text-muted">
+                    Unterstützte Formate: .db, .db3, .sqlite, .sqlite3
+                </p>
+                <p class="text-muted">
+                    Maximale Dateigröße: 100 MB
+                </p>
+            </div>
+            
+            <input type="file" 
+                   name="file" 
+                   id="fileInput" 
+                   class="form-control d-none" 
+                   accept=".db,.db3,.sqlite,.sqlite3"
+                   required>
+            
+            <button type="button" class="btn btn-primary btn-lg" onclick="document.getElementById('fileInput').click()">
+                <i class="fas fa-folder-open me-2"></i>
+                Datei auswählen
+            </button>
+        `;
+        
+        // Re-attach event listeners
+        const newFileInput = document.getElementById('fileInput');
+        newFileInput.addEventListener('change', handleFileSelect);
+    }
+
+    function formatFileSize(bytes) {
+        if (bytes === 0) return '0 Bytes';
+        const k = 1024;
+        const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+    }
+
+    function showHelp() {
+        const helpModal = new bootstrap.Modal(document.getElementById('helpModal'));
+        helpModal.show();
+    }
+
+    function showSampleData() {
+        alert('Beispieldaten-Funktion wird in einer zukünftigen Version verfügbar sein.');
+    }
+
+    // Form validation
+    document.getElementById('uploadForm').addEventListener('submit', function(e) {
+        console.log('=== FORM SUBMIT START ===');
+        console.log('Form wird gesendet...');
+        
+        const fileInput = document.getElementById('fileInput');
+        console.log('Datei:', fileInput.files[0]);
+        console.log('Dateiname:', fileInput.files[0]?.name);
+        console.log('Dateigröße:', fileInput.files[0]?.size);
+        console.log('Form-Action:', this.action);
+        console.log('Form-Methode:', this.method);
+        console.log('=== FORM SUBMIT ENDE ===');
+        
+        if (!fileInput.files[0]) {
+            e.preventDefault();
+            alert('Bitte wählen Sie eine Datei aus.');
+            return false;
+        }
+        
+        // Submit-Button deaktivieren während Upload
+        document.getElementById('submitBtn').disabled = true;
+        document.getElementById('submitBtn').innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Wird hochgeladen...';
+    });
+</script>
+{% endblock %}

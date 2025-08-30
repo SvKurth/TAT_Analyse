@@ -1,0 +1,101 @@
+# =============================================================================
+# TAT Analyse Tool - Flask Fork Requirements
+# =============================================================================
+# Alle Abhängigkeiten für den Flask-Fork des Trading-Analyse-Tools
+# Installieren mit: pip install -r requirements_flask.txt
+# 
+# Diese Datei enthält alle notwendigen Pakete für:
+# - Flask Web-Framework
+# - Trading-Analyse-Funktionalität
+# - Datenanalyse und Visualisierung
+# - Entwicklung und Testing
+
+# =============================================================================
+# WEB FRAMEWORK
+# =============================================================================
+# Flask für das Web-Framework
+Flask>=3.0.0
+# Flask-WTF für Formulare
+Flask-WTF>=1.2.0
+# Flask-SQLAlchemy für Datenbankoperationen
+Flask-SQLAlchemy>=3.1.0
+# Flask-Login für Authentifizierung (optional)
+Flask-Login>=0.6.3
+# Werkzeug für WSGI-Utilities
+Werkzeug>=3.0.0
+
+# =============================================================================
+# INTERACTIVE VISUALIZATION
+# =============================================================================
+# Plotly für interaktive Charts und Grafiken
+plotly>=5.17.0
+# Statistische Visualisierung
+seaborn>=0.12.0
+# Grundlegende Plotting-Bibliothek
+matplotlib>=3.7.0
+
+# =============================================================================
+# CORE DATA PROCESSING
+# =============================================================================
+# Pandas für Datenmanipulation und -analyse
+pandas>=2.1.0
+# NumPy für numerische Berechnungen
+numpy>=1.24.0
+# Python-Datum/Zeit-Utilities
+python-dateutil>=2.8.0
+
+# =============================================================================
+# DATA SOURCES & IMPORT
+# =============================================================================
+# Yahoo Finance API für Marktdaten
+yfinance>=0.2.0
+# HTTP-Requests für API-Aufrufe
+requests>=2.31.0
+# Excel-Dateien lesen/schreiben
+openpyxl>=3.1.0
+# Parquet-Dateien für bessere Performance
+pyarrow>=12.0.0
+
+# =============================================================================
+# TECHNICAL ANALYSIS
+# =============================================================================
+# Technische Indikatoren (RSI, MACD, etc.)
+ta>=0.10.0
+# Wissenschaftliche Berechnungen
+scipy>=1.10.0
+# Machine Learning für erweiterte Analysen
+scikit-learn>=1.3.0
+
+# =============================================================================
+# CONFIGURATION & UTILITIES
+# =============================================================================
+# Umgebungsvariablen aus .env-Dateien laden
+python-dotenv>=1.0.0
+# Konfigurationsdateien verarbeiten
+configparser
+# YAML-Dateien verarbeiten
+PyYAML>=6.0
+
+# =============================================================================
+# DEVELOPMENT & TESTING
+# =============================================================================
+# Unit-Testing Framework
+pytest>=7.4.0
+# Test-Coverage-Berichte
+pytest-cov>=4.1.0
+# Code-Formatierung
+black>=23.0.0
+# Code-Linting
+flake8>=6.0.0
+# Statische Typ-Überprüfung
+mypy>=1.5.0
+
+# =============================================================================
+# FLASK DEVELOPMENT SERVER
+# =============================================================================
+# Flask-Entwicklungsserver
+flask-cors>=4.0.0
+# Flask-Babel für Internationalisierung (optional)
+Flask-Babel>=4.0.0
+# Flask-Compress für Komprimierung
+Flask-Compress>=1.14

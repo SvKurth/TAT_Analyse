@@ -1,0 +1,782 @@
+{% extends "base.html" %}
+
+{% block title %}Tradenavigator - TAT Analyse Tool{% endblock %}
+
+{% block content %}
+{% if data is defined and data is not none %}
+<div class="row">
+    <div class="col-12">
+        <div class="main-content">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <div>
+                    <h2 class="fw-bold text-primary mb-2">
+                        <i class="fas fa-compass me-3"></i>
+                        TAT Tradenavigator
+                    </h2>
+                    <p class="text-muted mb-0">
+                        Erweiterte Navigation und Analyse Ihrer Trades
+                    </p>
+                </div>
+                <div>
+                    <a href="{{ url_for('dashboard') }}" class="btn btn-outline-primary me-2">
+                        <i class="fas fa-tachometer-alt me-2"></i>Dashboard
+                    </a>
+                    <a href="{{ url_for('metrics') }}" class="btn btn-outline-primary">
+                        <i class="fas fa-chart-line me-2"></i>Metriken
+                    </a>
+                </div>
+            </div>
+
+            <!-- Navigation Controls -->
+            <div class="row mb-4">
+                <div class="col-lg-8">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5 class="mb-0">
+                                <i class="fas fa-search me-2"></i>
+                                Trade-Suche & Navigation
+                            </h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <label for="searchQuery" class="form-label">Freitext-Suche</label>
+                                    <input type="text" class="form-control" id="searchQuery" 
+                                           placeholder="Trade ID, Strategie, Notizen...">
+                                </div>
+                                <div class="col-md-6">
+                                    <label for="dateRange" class="form-label">Datumsbereich</label>
+                                    <select class="form-select" id="dateRange">
+                                        <option value="all">Alle Daten</option>
+                                        <option value="today">Heute</option>
+                                        <option value="week">Diese Woche</option>
+                                        <option value="month">Dieser Monat</option>
+                                        <option value="quarter">Dieses Quartal</option>
+                                        <option value="year">Dieses Jahr</option>
+                                        <option value="custom">Benutzerdefiniert</option>
+                                    </select>
+                                </div>
+                            </div>
+                            
+                            <div class="row mt-3">
+                                <div class="col-md-4">
+                                    <label for="profitRange" class="form-label">Gewinn/Verlust-Bereich</label>
+                                    <select class="form-select" id="profitRange">
+                                        <option value="all">Alle</option>
+                                        <option value="high_profit">Hohe Gewinne (>1000)</option>
+                                        <option value="medium_profit">Mittlere Gewinne (100-1000)</option>
+                                        <option value="low_profit">Niedrige Gewinne (0-100)</option>
+                                        <option value="low_loss">Niedrige Verluste (0-100)</option>
+                                        <option value="medium_loss">Mittlere Verluste (100-1000)</option>
+                                        <option value="high_loss">Hohe Verluste (>1000)</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-4">
+                                    <label for="strategyFilter" class="form-label">Strategie</label>
+                                    <select class="form-select" id="strategyFilter">
+                                        <option value="">Alle Strategien</option>
+                                        {% if data is defined and data is not none and 'Strategy' in data.columns %}
+                                            {% set strategies = data['Strategy'].unique() %}
+                                            {% for strategy in strategies %}
+                                                {% if strategy %}
+                                                    <option value="{{ strategy }}">{{ strategy }}</option>
+                                                {% endif %}
+                                            {% endfor %}
+                                        {% endif %}
+                                    </select>
+                                </div>
+                                <div class="col-md-4">
+                                    <label for="statusFilter" class="form-label">Status</label>
+                                    <select class="form-select" id="statusFilter">
+                                        <option value="">Alle Status</option>
+                                        {% if data is defined and data is not none and 'Status' in data.columns %}
+                                            {% set statuses = data['Status'].unique() %}
+                                            {% for status in statuses %}
+                                                {% if status %}
+                                                    <option value="{{ status }}">{{ status }}</option>
+                                                {% endif %}
+                                            {% endfor %}
+                                        {% endif %}
+                                    </select>
+                                </div>
+                            </div>
+                            
+                            <div class="row mt-3">
+                                <div class="col-12">
+                                    <button class="btn btn-primary me-2" onclick="performSearch()">
+                                        <i class="fas fa-search me-2"></i>Suchen
+                                    </button>
+                                    <button class="btn btn-outline-secondary me-2" onclick="clearFilters()">
+                                        <i class="fas fa-times me-2"></i>Filter löschen
+                                    </button>
+                                    <button class="btn btn-outline-success" onclick="exportResults()">
+                                        <i class="fas fa-download me-2"></i>Ergebnisse exportieren
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-lg-4">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5 class="mb-0">
+                                <i class="fas fa-lightbulb me-2"></i>
+                                Intelligente Vorschläge
+                            </h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="mb-3">
+                                <h6>Ähnliche Trades</h6>
+                                <button class="btn btn-sm btn-outline-primary w-100 mb-2" onclick="findSimilarTrades()">
+                                    <i class="fas fa-copy me-1"></i>Ähnliche finden
+                                </button>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <h6>Pattern-Analyse</h6>
+                                <button class="btn btn-sm btn-outline-info w-100 mb-2" onclick="analyzePatterns()">
+                                    <i class="fas fa-chart-line me-1"></i>Patterns erkennen
+                                </button>
+                            </div>
+                            
+                            <div>
+                                <h6>Optimierung</h6>
+                                <button class="btn btn-sm btn-outline-warning w-100" onclick="suggestOptimizations()">
+                                    <i class="fas fa-magic me-1"></i>Optimierungen vorschlagen
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Search Results -->
+            <div class="row mb-4">
+                <div class="col-12">
+                    <div class="card">
+                        <div class="card-header d-flex justify-content-between align-items-center">
+                            <h5 class="mb-0">
+                                <i class="fas fa-list me-2"></i>
+                                Suchergebnisse
+                            </h5>
+                            <div>
+                                <span class="badge bg-primary" id="resultCount">0</span> Trades gefunden
+                            </div>
+                        </div>
+                        <div class="card-body">
+                            <div class="table-responsive">
+                                <table class="table table-hover" id="searchResultsTable">
+                                    <thead>
+                                        <tr>
+                                            <th>Datum</th>
+                                            <th>Trade ID</th>
+                                            <th>Typ</th>
+                                            <th>Strategie</th>
+                                            <th>Gewinn/Verlust</th>
+                                            <th>Status</th>
+                                            <th>Score</th>
+                                            <th>Aktionen</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="searchResultsTableBody">
+                                        <!-- Search results will be loaded here -->
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Advanced Analytics -->
+            <div class="row mb-4">
+                <div class="col-lg-6">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5 class="mb-0">
+                                <i class="fas fa-chart-pie me-2"></i>
+                                Strategie-Performance
+                            </h5>
+                        </div>
+                        <div class="card-body">
+                            <div id="strategyPerformanceChart"></div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-lg-6">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5 class="mb-0">
+                                <i class="fas fa-chart-bar me-2"></i>
+                                Gewinn/Verlust-Verteilung
+                            </h5>
+                        </div>
+                        <div class="card-body">
+                            <div id="profitLossDistributionChart"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Trade Insights -->
+            <div class="row">
+                <div class="col-lg-8">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5 class="mb-0">
+                                <i class="fas fa-lightbulb me-2"></i>
+                                Trade-Erkenntnisse
+                            </h5>
+                        </div>
+                        <div class="card-body">
+                            <div id="tradeInsights">
+                                <!-- Insights will be loaded here -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-lg-4">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5 class="mb-0">
+                                <i class="fas fa-clock me-2"></i>
+                                Aktuelle Trends
+                            </h5>
+                        </div>
+                        <div class="card-body">
+                            <div id="currentTrends">
+                                <!-- Trends will be loaded here -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% else %}
+<div class="row justify-content-center">
+    <div class="col-lg-6">
+        <div class="main-content text-center">
+            <div class="mb-4">
+                <i class="fas fa-exclamation-triangle fa-5x text-warning"></i>
+            </div>
+            
+            <h2 class="h3 mb-3">Keine Daten geladen</h2>
+            <p class="lead text-muted mb-4">
+                Bitte laden Sie zuerst eine Datenbankdatei hoch, um den Tradenavigator zu nutzen.
+            </p>
+            
+            <div class="d-grid gap-2 d-md-block">
+                <a href="{{ url_for('upload_file') }}" class="btn btn-primary btn-lg">
+                    <i class="fas fa-upload me-2"></i>
+                    Datei hochladen
+                </a>
+                <a href="{{ url_for('index') }}" class="btn btn-outline-primary btn-lg">
+                    <i class="fas fa-home me-2"></i>
+                    Zur Startseite
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<!-- Chart.js -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<script>
+    let searchResults = [];
+    let currentFilters = {};
+    
+    document.addEventListener('DOMContentLoaded', function() {
+        {% if data is defined and data is not none %}
+        setupEventListeners();
+        loadInitialData();
+        {% endif %}
+    });
+
+    function setupEventListeners() {
+        // Search query
+        document.getElementById('searchQuery').addEventListener('input', debounce(performSearch, 300));
+        
+        // Date range
+        document.getElementById('dateRange').addEventListener('change', function() {
+            if (this.value === 'custom') {
+                showCustomDatePicker();
+            } else {
+                performSearch();
+            }
+        });
+        
+        // Other filters
+        document.getElementById('profitRange').addEventListener('change', performSearch);
+        document.getElementById('strategyFilter').addEventListener('change', performSearch);
+        document.getElementById('statusFilter').addEventListener('change', performSearch);
+    }
+
+    function debounce(func, wait) {
+        let timeout;
+        return function executedFunction(...args) {
+            const later = () => {
+                clearTimeout(timeout);
+                func(...args);
+            };
+            clearTimeout(timeout);
+            timeout = setTimeout(later, wait);
+        };
+    }
+
+    function loadInitialData() {
+        {% if data is defined and data is not none %}
+        const tradeData = {{ data.to_dict('records') | tojson }};
+        searchResults = tradeData;
+        updateSearchResults();
+        updateCharts();
+        updateInsights();
+        updateTrends();
+        {% endif %}
+    }
+
+    function performSearch() {
+        {% if data is defined and data is not none %}
+        const tradeData = {{ data.to_dict('records') | tojson }};
+        const searchQuery = document.getElementById('searchQuery').value.toLowerCase();
+        const dateRange = document.getElementById('dateRange').value;
+        const profitRange = document.getElementById('profitRange').value;
+        const strategyFilter = document.getElementById('strategyFilter').value;
+        const statusFilter = document.getElementById('statusFilter').value;
+        
+        // Apply filters
+        searchResults = tradeData.filter(trade => {
+            // Text search
+            if (searchQuery) {
+                const searchableText = [
+                    trade.TradeID?.toString() || '',
+                    trade.Strategy || '',
+                    trade.Notes || '',
+                    trade.TradeType || ''
+                ].join(' ').toLowerCase();
+                
+                if (!searchableText.includes(searchQuery)) {
+                    return false;
+                }
+            }
+            
+            // Date range filter
+            if (dateRange !== 'all') {
+                if (!applyDateFilter(trade, dateRange)) {
+                    return false;
+                }
+            }
+            
+            // Profit range filter
+            if (profitRange !== 'all') {
+                if (!applyProfitFilter(trade, profitRange)) {
+                    return false;
+                }
+            }
+            
+            // Strategy filter
+            if (strategyFilter && trade.Strategy !== strategyFilter) {
+                return false;
+            }
+            
+            // Status filter
+            if (statusFilter && trade.Status !== statusFilter) {
+                return false;
+            }
+            
+            return true;
+        });
+        
+        updateSearchResults();
+        updateCharts();
+        updateInsights();
+        updateTrends();
+        {% endif %}
+    }
+
+    function applyDateFilter(trade, dateRange) {
+        const today = new Date();
+        const tradeDate = new Date(trade.DateOpened || trade.Year, (trade.Month || 1) - 1, trade.Day || 1);
+        
+        switch (dateRange) {
+            case 'today':
+                return tradeDate.toDateString() === today.toDateString();
+            case 'week':
+                const weekAgo = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000);
+                return tradeDate >= weekAgo;
+            case 'month':
+                return tradeDate.getMonth() === today.getMonth() && tradeDate.getFullYear() === today.getFullYear();
+            case 'quarter':
+                const quarter = Math.floor(today.getMonth() / 3);
+                const tradeQuarter = Math.floor(tradeDate.getMonth() / 3);
+                return tradeQuarter === quarter && tradeDate.getFullYear() === today.getFullYear();
+            case 'year':
+                return tradeDate.getFullYear() === today.getFullYear();
+            default:
+                return true;
+        }
+    }
+
+    function applyProfitFilter(trade, profitRange) {
+        const profit = trade.ProfitLoss || 0;
+        
+        switch (profitRange) {
+            case 'high_profit':
+                return profit > 1000;
+            case 'medium_profit':
+                return profit >= 100 && profit <= 1000;
+            case 'low_profit':
+                return profit > 0 && profit < 100;
+            case 'low_loss':
+                return profit < 0 && profit > -100;
+            case 'medium_loss':
+                return profit <= -100 && profit >= -1000;
+            case 'high_loss':
+                return profit < -1000;
+            default:
+                return true;
+        }
+    }
+
+    function updateSearchResults() {
+        const tbody = document.getElementById('searchResultsTableBody');
+        const resultCount = document.getElementById('resultCount');
+        
+        tbody.innerHTML = '';
+        resultCount.textContent = searchResults.length;
+        
+        searchResults.forEach(trade => {
+            const row = document.createElement('tr');
+            const profitLoss = trade.ProfitLoss || 0;
+            const profitClass = profitLoss > 0 ? 'text-success' : profitLoss < 0 ? 'text-danger' : 'text-muted';
+            const score = calculateTradeScore(trade);
+            
+            row.innerHTML = `
+                <td>${trade.Day || 'N/A'}.${trade.Month || 'N/A'}.${trade.Year || 'N/A'}</td>
+                <td>${trade.TradeID || 'N/A'}</td>
+                <td>${trade.TradeType || 'N/A'}</td>
+                <td>${trade.Strategy || 'N/A'}</td>
+                <td class="${profitClass}">${profitLoss.toFixed(2)}</td>
+                <td>${trade.Status || 'N/A'}</td>
+                <td>
+                    <span class="badge bg-${score >= 7 ? 'success' : score >= 4 ? 'warning' : 'danger'}">
+                        ${score}/10
+                    </span>
+                </td>
+                <td>
+                    <button class="btn btn-sm btn-outline-primary me-1" onclick="showTradeDetails(${trade.TradeID || 'N/A'})">
+                        <i class="fas fa-eye"></i>
+                    </button>
+                    <button class="btn btn-sm btn-outline-info" onclick="analyzeTrade(${trade.TradeID || 'N/A'})">
+                        <i class="fas fa-chart-line"></i>
+                    </button>
+                </td>
+            `;
+            tbody.appendChild(row);
+        });
+    }
+
+    function calculateTradeScore(trade) {
+        let score = 5; // Base score
+        
+        // Profit factor
+        if (trade.ProfitLoss > 0) {
+            score += Math.min(3, Math.floor(trade.ProfitLoss / 100));
+        } else if (trade.ProfitLoss < 0) {
+            score -= Math.min(3, Math.floor(Math.abs(trade.ProfitLoss) / 100));
+        }
+        
+        // Strategy factor
+        if (trade.Strategy) {
+            score += 1;
+        }
+        
+        // Status factor
+        if (trade.Status === 'Closed') {
+            score += 1;
+        }
+        
+        return Math.max(1, Math.min(10, score));
+    }
+
+    function updateCharts() {
+        updateStrategyPerformanceChart();
+        updateProfitLossDistributionChart();
+    }
+
+    function updateStrategyPerformanceChart() {
+        const ctx = document.getElementById('strategyPerformanceChart');
+        if (!ctx) return;
+        
+        // Calculate strategy performance
+        const strategyStats = {};
+        searchResults.forEach(trade => {
+            const strategy = trade.Strategy || 'Unbekannt';
+            if (!strategyStats[strategy]) {
+                strategyStats[strategy] = { count: 0, totalProfit: 0 };
+            }
+            strategyStats[strategy].count++;
+            strategyStats[strategy].totalProfit += (trade.ProfitLoss || 0);
+        });
+        
+        const labels = Object.keys(strategyStats);
+        const data = labels.map(strategy => strategyStats[strategy].totalProfit);
+        const counts = labels.map(strategy => strategyStats[strategy].count);
+        
+        // Create or update chart
+        if (window.strategyChart) {
+            window.strategyChart.destroy();
+        }
+        
+        window.strategyChart = new Chart(ctx, {
+            type: 'doughnut',
+            data: {
+                labels: labels,
+                datasets: [{
+                    data: data,
+                    backgroundColor: [
+                        '#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0', '#9966FF',
+                        '#FF9F40', '#FF6384', '#C9CBCF', '#4BC0C0', '#FF6384'
+                    ]
+                }]
+            },
+            options: {
+                responsive: true,
+                plugins: {
+                    legend: {
+                        position: 'bottom'
+                    },
+                    title: {
+                        display: true,
+                        text: 'Strategie-Performance (Gewinn/Verlust)'
+                    }
+                }
+            }
+        });
+    }
+
+    function updateProfitLossDistributionChart() {
+        const ctx = document.getElementById('profitLossDistributionChart');
+        if (!ctx) return;
+        
+        // Create profit/loss ranges
+        const ranges = [
+            { min: -Infinity, max: -1000, label: '< -1000' },
+            { min: -1000, max: -100, label: '-1000 bis -100' },
+            { min: -100, max: 0, label: '-100 bis 0' },
+            { min: 0, max: 100, label: '0 bis 100' },
+            { min: 100, max: 1000, label: '100 bis 1000' },
+            { min: 1000, max: Infinity, label: '> 1000' }
+        ];
+        
+        const data = ranges.map(range => {
+            return searchResults.filter(trade => {
+                const profit = trade.ProfitLoss || 0;
+                return profit >= range.min && profit < range.max;
+            }).length;
+        });
+        
+        const labels = ranges.map(range => range.label);
+        
+        // Create or update chart
+        if (window.profitLossChart) {
+            window.profitLossChart.destroy();
+        }
+        
+        window.profitLossChart = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: 'Anzahl Trades',
+                    data: data,
+                    backgroundColor: '#36A2EB'
+                }]
+            },
+            options: {
+                responsive: true,
+                plugins: {
+                    legend: {
+                        display: false
+                    },
+                    title: {
+                        display: true,
+                        text: 'Gewinn/Verlust-Verteilung'
+                    }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true
+                    }
+                }
+            }
+        });
+    }
+
+    function updateInsights() {
+        const insightsEl = document.getElementById('tradeInsights');
+        
+        if (searchResults.length === 0) {
+            insightsEl.innerHTML = '<p class="text-muted">Keine Trades für Analyse verfügbar.</p>';
+            return;
+        }
+        
+        // Calculate insights
+        const totalTrades = searchResults.length;
+        const profitableTrades = searchResults.filter(t => t.ProfitLoss > 0).length;
+        const totalProfit = searchResults.reduce((sum, t) => sum + (t.ProfitLoss || 0), 0);
+        const avgProfit = totalProfit / totalTrades;
+        const winRate = (profitableTrades / totalTrades) * 100;
+        
+        // Find best and worst trades
+        const bestTrade = searchResults.reduce((best, current) => 
+            (current.ProfitLoss || 0) > (best.ProfitLoss || 0) ? current : best
+        );
+        const worstTrade = searchResults.reduce((worst, current) => 
+            (current.ProfitLoss || 0) < (worst.ProfitLoss || 0) ? current : worst
+        );
+        
+        insightsEl.innerHTML = `
+            <div class="row">
+                <div class="col-md-6">
+                    <h6>Performance-Übersicht</h6>
+                    <ul class="list-unstyled">
+                        <li><strong>Gewinnrate:</strong> ${winRate.toFixed(1)}%</li>
+                        <li><strong>Durchschnittlicher Gewinn/Verlust:</strong> ${avgProfit.toFixed(2)}</li>
+                        <li><strong>Gesamtgewinn:</strong> ${totalProfit.toFixed(2)}</li>
+                    </ul>
+                </div>
+                <div class="col-md-6">
+                    <h6>Extreme Trades</h6>
+                    <ul class="list-unstyled">
+                        <li class="text-success"><strong>Bester Trade:</strong> ${bestTrade.TradeID || 'N/A'} (${bestTrade.ProfitLoss?.toFixed(2) || 'N/A'})</li>
+                        <li class="text-danger"><strong>Schlechtester Trade:</strong> ${worstTrade.TradeID || 'N/A'} (${worstTrade.ProfitLoss?.toFixed(2) || 'N/A'})</li>
+                    </ul>
+                </div>
+            </div>
+        `;
+    }
+
+    function updateTrends() {
+        const trendsEl = document.getElementById('currentTrends');
+        
+        if (searchResults.length === 0) {
+            trendsEl.innerHTML = '<p class="text-muted">Keine Trends verfügbar.</p>';
+            return;
+        }
+        
+        // Calculate trends
+        const recentTrades = searchResults.slice(-10); // Last 10 trades
+        const recentProfit = recentTrades.reduce((sum, t) => sum + (t.ProfitLoss || 0), 0);
+        const recentWinRate = (recentTrades.filter(t => t.ProfitLoss > 0).length / recentTrades.length) * 100;
+        
+        let trendAnalysis = '';
+        if (recentTrades.length >= 5) {
+            if (recentWinRate > 60) {
+                trendAnalysis = '<span class="text-success">Positive Entwicklung</span>';
+            } else if (recentWinRate < 40) {
+                trendAnalysis = '<span class="text-danger">Negative Entwicklung</span>';
+            } else {
+                trendAnalysis = '<span class="text-warning">Stabile Entwicklung</span>';
+            }
+        }
+        
+        trendsEl.innerHTML = `
+            <div class="mb-3">
+                <h6>Letzte 10 Trades</h6>
+                <p class="mb-1"><strong>Gewinnrate:</strong> ${recentWinRate.toFixed(1)}%</p>
+                <p class="mb-1"><strong>Gesamtgewinn:</strong> ${recentProfit.toFixed(2)}</p>
+                <p class="mb-0"><strong>Trend:</strong> ${trendAnalysis}</p>
+            </div>
+            
+            <div>
+                <h6>Empfehlungen</h6>
+                <ul class="list-unstyled">
+                    <li><i class="fas fa-check text-success me-2"></i>Strategien mit hoher Gewinnrate beibehalten</li>
+                    <li><i class="fas fa-exclamation-triangle text-warning me-2"></i>Verlustbringende Strategien überprüfen</li>
+                    <li><i class="fas fa-chart-line text-info me-2"></i>Regelmäßige Performance-Analyse</li>
+                </ul>
+            </div>
+        `;
+    }
+
+    function clearFilters() {
+        document.getElementById('searchQuery').value = '';
+        document.getElementById('dateRange').value = 'all';
+        document.getElementById('profitRange').value = 'all';
+        document.getElementById('strategyFilter').value = '';
+        document.getElementById('statusFilter').value = '';
+        
+        performSearch();
+    }
+
+    function exportResults() {
+        if (searchResults.length === 0) {
+            alert('Keine Ergebnisse zum Exportieren verfügbar.');
+            return;
+        }
+        
+        // Create CSV content
+        const headers = ['Datum', 'Trade ID', 'Typ', 'Strategie', 'Gewinn/Verlust', 'Status'];
+        const csvContent = [
+            headers.join(','),
+            ...searchResults.map(trade => [
+                `${trade.Day || 'N/A'}.${trade.Month || 'N/A'}.${trade.Year || 'N/A'}`,
+                trade.TradeID || 'N/A',
+                trade.TradeType || 'N/A',
+                trade.Strategy || 'N/A',
+                trade.ProfitLoss || 'N/A',
+                trade.Status || 'N/A'
+            ].join(','))
+        ].join('\n');
+        
+        // Download CSV
+        const blob = new Blob([csvContent], { type: 'text/csv' });
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `trade_search_results_${new Date().toISOString().split('T')[0]}.csv`;
+        a.click();
+        window.URL.revokeObjectURL(url);
+    }
+
+    function findSimilarTrades() {
+        // Implementation for finding similar trades
+        alert('Funktion "Ähnliche Trades finden" wird implementiert...');
+    }
+
+    function analyzePatterns() {
+        // Implementation for pattern analysis
+        alert('Funktion "Pattern-Analyse" wird implementiert...');
+    }
+
+    function suggestOptimizations() {
+        // Implementation for optimization suggestions
+        alert('Funktion "Optimierungen vorschlagen" wird implementiert...');
+    }
+
+    function showTradeDetails(tradeId) {
+        // Implementation for showing trade details
+        console.log('Show details for trade:', tradeId);
+    }
+
+    function analyzeTrade(tradeId) {
+        // Implementation for trade analysis
+        console.log('Analyze trade:', tradeId);
+    }
+
+    function showCustomDatePicker() {
+        // Implementation for custom date picker
+        alert('Benutzerdefinierter Datumsbereich wird implementiert...');
+    }
+</script>
+{% endblock %}

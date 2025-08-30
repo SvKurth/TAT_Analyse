@@ -1,0 +1,1022 @@
+{% extends "base.html" %}
+
+{% block title %}Monatskalender - TAT Analyse Tool{% endblock %}
+
+{% block content %}
+{% if data is defined and data is not none %}
+<div class="row">
+    <div class="col-12">
+        <div class="main-content">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <div>
+                    <h2 class="fw-bold text-primary mb-2">
+                        <i class="fas fa-calendar-alt me-3"></i>
+                        Monatskalender
+                    </h2>
+                    <p class="text-muted mb-0">
+                        Detaillierte Monatsansicht aller Trades mit Statistiken
+                    </p>
+                </div>
+                <div>
+                    <a href="{{ url_for('dashboard') }}" class="btn btn-outline-primary me-2">
+                        <i class="fas fa-tachometer-alt me-2"></i>Dashboard
+                    </a>
+
+                </div>
+            </div>
+
+            <!-- Month Selection -->
+            <div class="row mb-4">
+                <div class="col-lg-8">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5 class="mb-0">
+                                <i class="fas fa-calendar-check me-2"></i>
+                                Monat auswählen
+                            </h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <label for="monthYearSelect" class="form-label">Monat & Jahr</label>
+                                    <select class="form-select" id="monthYearSelect">
+                                        {% if data is defined and data is not none and 'Year' in data.columns and 'Month' in data.columns %}
+                                            {% set month_year_combinations = [] %}
+                                            {% for _, row in data.iterrows() %}
+                                                {% if row['Year'] and row['Month'] %}
+                                                    {% set combo = (row['Year'], row['Month']) %}
+                                                    {% if combo not in month_year_combinations %}
+                                                        {% set _ = month_year_combinations.append(combo) %}
+                                                    {% endif %}
+                                                {% endif %}
+                                            {% endfor %}
+                                            {% for year, month in month_year_combinations | sort %}
+                                                <option value="{{ year }}-{{ month }}">
+                                                    {% if month == 1 %}Januar{% elif month == 2 %}Februar{% elif month == 3 %}März{% elif month == 4 %}April{% elif month == 5 %}Mai{% elif month == 6 %}Juni{% elif month == 7 %}Juli{% elif month == 8 %}August{% elif month == 9 %}September{% elif month == 10 %}Oktober{% elif month == 11 %}November{% elif month == 12 %}Dezember{% endif %} {{ year }}
+                                                </option>
+                                            {% endfor %}
+                                        {% endif %}
+                                    </select>
+                                </div>
+                                <div class="col-md-6">
+                                    <label for="viewMode" class="form-label">Ansichtsmodus</label>
+                                    <select class="form-select" id="viewMode">
+                                        <option value="calendar">Kalenderansicht</option>
+                                        <option value="list">Listenansicht</option>
+                                        <option value="stats">Statistiken</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-lg-4">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5 class="mb-0">
+                                <i class="fas fa-filter me-2"></i>
+                                Schnellfilter
+                            </h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="mb-3">
+                                <label for="quickFilter" class="form-label">Filter</label>
+                                <select class="form-select" id="quickFilter">
+                                    <option value="">Alle Trades</option>
+                                    <option value="profitable">Nur Gewinne</option>
+                                    <option value="losses">Nur Verluste</option>
+                                    <option value="open">Offene Trades</option>
+                                    <option value="closed">Geschlossene Trades</option>
+                                </select>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label for="strategyFilter" class="form-label">Strategie</label>
+                                <select class="form-select" id="strategyFilter">
+                                    <option value="">Alle Strategien</option>
+                                    <!-- Strategien werden dynamisch geladen -->
+                                </select>
+                            </div>
+                            
+                            <div>
+                                <label for="sortBy" class="form-label">Sortierung</label>
+                                <select class="form-select" id="sortBy">
+                                    <option value="date">Nach Datum</option>
+                                    <option value="profit">Nach Gewinn/Verlust</option>
+                                    <option value="strategy">Nach Strategie</option>
+                                    <option value="type">Nach Typ</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Monthly Summary -->
+            <div class="row mb-4">
+                <div class="col-12">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5 class="mb-0">
+                                <i class="fas fa-chart-pie me-2"></i>
+                                Monatszusammenfassung
+                            </h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="row" id="monthlySummary">
+                                <!-- Monthly summary will be loaded here -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Calendar View -->
+            <div class="row mb-4" id="calendarView">
+                <div class="col-12">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5 class="mb-0">
+                                <i class="fas fa-calendar me-2"></i>
+                                Monatskalender
+                            </h5>
+                        </div>
+                        <div class="card-body">
+                            <!-- Kalender-Legende -->
+                            <div class="calendar-legend mb-3">
+                                <div class="d-flex flex-wrap gap-3 align-items-center">
+                                    <div class="d-flex align-items-center">
+                                        <div class="daily-pnl positive me-2">+100</div>
+                                        <small class="text-muted">Gewinn</small>
+                                    </div>
+                                    <div class="d-flex align-items-center">
+                                        <div class="daily-pnl negative me-2">-50</div>
+                                        <small class="text-muted">Verlust</small>
+                                    </div>
+                                    <div class="d-flex align-items-center">
+                                        <div class="daily-pnl neutral me-2">0</div>
+                                        <small class="text-muted">Break-even</small>
+                                    </div>
+                                    <div class="d-flex align-items-center">
+                                        <div class="trade-indicator me-2">3</div>
+                                        <small class="text-muted">Anzahl Trades</small>
+                                    </div>
+                                    <div class="d-flex align-items-center">
+                                        <div class="premium-capture-rate me-2">85.2%</div>
+                                        <small class="text-muted">Premium Capture Rate</small>
+                                    </div>
+                                </div>
+                            </div>
+                            <div id="monthlyCalendar"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- List View -->
+            <div class="row mb-4" id="listView" style="display: none;">
+                <div class="col-12">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5 class="mb-0">
+                                <i class="fas fa-list me-2"></i>
+                                Trades des Monats
+                            </h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="table-responsive">
+                                <table class="table table-hover" id="monthlyTradesTable">
+                                    <thead>
+                                        <tr>
+                                            <th>Datum</th>
+                                            <th>Trade ID</th>
+                                            <th>Typ</th>
+                                            <th>Strategie</th>
+                                            <th>Gewinn/Verlust</th>
+                                            <th>Status</th>
+                                            <th>Aktionen</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="monthlyTradesTableBody">
+                                        <!-- Trades will be loaded here -->
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Statistics View -->
+            <div class="row mb-4" id="statsView" style="display: none;">
+                <div class="col-12">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5 class="mb-0">
+                                <i class="fas fa-chart-bar me-2"></i>
+                                Monatsstatistiken
+                            </h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="row" id="monthlyStats">
+                                <!-- Statistics will be loaded here -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% else %}
+<div class="row justify-content-center">
+    <div class="col-lg-6">
+        <div class="main-content text-center">
+            <div class="mb-4">
+                <i class="fas fa-exclamation-triangle fa-5x text-warning"></i>
+            </div>
+            
+            <h2 class="h3 mb-3">Keine Daten geladen</h2>
+            <p class="lead text-muted mb-4">
+                Bitte laden Sie zuerst eine Datenbankdatei hoch, um den Monatskalender zu nutzen.
+            </p>
+            
+            <div class="d-grid gap-2 d-md-block">
+                <a href="{{ url_for('upload_file') }}" class="btn btn-primary btn-lg">
+                    <i class="fas fa-upload me-2"></i>
+                    Datei hochladen
+                </a>
+                <a href="{{ url_for('index') }}" class="btn btn-outline-primary btn-lg">
+                    <i class="fas fa-home me-2"></i>
+                    Zur Startseite
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+    let currentMonthData = null;
+    let currentView = 'calendar';
+    
+    document.addEventListener('DOMContentLoaded', function() {
+        {% if data is defined and data is not none %}
+        setupEventListeners();
+        loadInitialMonth();
+        {% endif %}
+    });
+
+    function setupEventListeners() {
+        // Month selection
+        document.getElementById('monthYearSelect').addEventListener('change', function() {
+            loadMonthData(this.value);
+        });
+        
+        // View mode
+        document.getElementById('viewMode').addEventListener('change', function() {
+            switchView(this.value);
+        });
+        
+        // Quick filters
+        document.getElementById('quickFilter').addEventListener('change', function() {
+            applyQuickFilter(this.value);
+        });
+        
+        // Strategy filter
+        document.getElementById('strategyFilter').addEventListener('change', function() {
+            applyStrategyFilter(this.value);
+        });
+        
+        // Sort by
+        document.getElementById('sortBy').addEventListener('change', function() {
+            applySorting(this.value);
+        });
+    }
+
+    function loadInitialMonth() {
+        const monthSelect = document.getElementById('monthYearSelect');
+        if (monthSelect.value) {
+            loadMonthData(monthSelect.value);
+        }
+    }
+
+    function loadMonthData(monthYear) {
+        const [year, month] = monthYear.split('-').map(Number);
+        
+        {% if data is defined and data is not none %}
+        const tradeData = {{ data.to_dict('records') | tojson }};
+        
+        // Filter data for selected month
+        currentMonthData = tradeData.filter(trade => {
+            if (trade.Year && trade.Month) {
+                return trade.Year === year && trade.Month === month;
+            }
+            return false;
+        });
+        
+        console.log('Monat gewechselt zu:', monthYear, 'mit', currentMonthData.length, 'Trades');
+        
+        // Lade verfügbare Strategien
+        loadAvailableStrategies();
+        
+        // Wende aktuelle Filter an
+        applyCurrentFilters();
+        {% endif %}
+    }
+
+    function updateMonthlySummary() {
+        updateMonthlySummaryWithData(currentMonthData);
+    }
+    
+    function updateMonthlySummaryWithData(data) {
+        if (!data) return;
+        
+        const summary = document.getElementById('monthlySummary');
+        const totalTrades = data.length;
+        const profitableTrades = data.filter(t => (t.ProfitLoss || 0) > 0).length;
+        const totalProfit = data.reduce((sum, t) => sum + (t.ProfitLoss || 0), 0);
+        const avgProfit = totalTrades > 0 ? totalProfit / totalTrades : 0;
+        
+        // Bestimme den Label-Text basierend auf den Daten
+        const isFiltered = data.length !== currentMonthData.length;
+        const labelText = isFiltered ? `(Gefiltert: ${data.length} von ${currentMonthData.length})` : '';
+        
+        summary.innerHTML = `
+            <div class="col-md-3">
+                <div class="stats-card bg-primary text-white">
+                    <div class="stats-number">${totalTrades}</div>
+                    <div class="stats-label">Gesamt Trades ${labelText}</div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="stats-card bg-success text-white">
+                    <div class="stats-number">${profitableTrades}</div>
+                    <div class="stats-label">Gewinnbringend</div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="stats-card bg-info text-white">
+                    <div class="stats-number">${totalProfit.toFixed(2)}</div>
+                    <div class="stats-label">Gesamtgewinn</div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="stats-card bg-warning text-white">
+                    <div class="stats-number">${avgProfit.toFixed(2)}</div>
+                    <div class="stats-label">Ø Gewinn/Trade</div>
+                </div>
+            </div>
+        `;
+        
+        console.log('Monatszusammenfassung aktualisiert mit', data.length, 'Trades');
+    }
+    
+    function updateCalendarView() {
+        updateCalendarViewWithData(currentMonthData);
+    }
+    
+    function updateCalendarViewWithData(data) {
+        if (!data) return;
+        
+        const calendarEl = document.getElementById('monthlyCalendar');
+        calendarEl.innerHTML = '';
+        
+        // Create simple calendar grid
+        const year = parseInt(document.getElementById('monthYearSelect').value.split('-')[0]);
+        const month = parseInt(document.getElementById('monthYearSelect').value.split('-')[1]);
+        
+        // Kalenderberechnung für nur den aktuellen Monat
+        const firstDay = new Date(year, month - 1, 1);
+        const lastDay = new Date(year, month, 0);
+        
+        // Berechne die Anzahl der Wochen für den Monat
+        const firstDayOfWeek = firstDay.getDay(); // 0 = Sonntag, 1 = Montag, ..., 6 = Samstag
+        const daysInMonth = lastDay.getDate();
+        const totalCells = firstDayOfWeek + daysInMonth;
+        const weeksNeeded = Math.ceil(totalCells / 7);
+        
+        let calendarHTML = `
+            <div class="calendar-grid">
+                <div class="calendar-header">
+                    <div class="calendar-cell">So</div>
+                    <div class="calendar-cell">Mo</div>
+                    <div class="calendar-cell">Di</div>
+                    <div class="calendar-cell">Mi</div>
+                    <div class="calendar-cell">Do</div>
+                    <div class="calendar-cell">Fr</div>
+                    <div class="calendar-cell">Sa</div>
+                </div>
+        `;
+        
+        let weekHTML = '<div class="calendar-week">';
+        let cellIndex = 0;
+        
+        // Erstelle Kalender für genau die benötigten Wochen
+        for (let week = 0; week < weeksNeeded; week++) {
+            for (let day = 0; day < 7; day++) {
+                // Berechne den aktuellen Wochentag korrekt
+                const currentDayOfWeek = (firstDayOfWeek + day + (week * 7)) % 7;
+                
+                // Prüfe, ob wir noch im aktuellen Monat sind
+                const dayOfMonth = cellIndex - firstDayOfWeek + 1;
+                const isCurrentMonth = dayOfMonth >= 1 && dayOfMonth <= daysInMonth;
+                
+                if (isCurrentMonth) {
+                    // Tag im aktuellen Monat - alle Tage zeigen Trades
+                    const dayTrades = data.filter(t => {
+                        if (t.Day) {
+                            return t.Day === dayOfMonth;
+                        }
+                        return false;
+                    });
+                    
+                    // Berechne den täglichen P&L
+                    const dailyPnL = dayTrades.reduce((sum, trade) => sum + (trade.ProfitLoss || 0), 0);
+                    const pnlClass = dailyPnL > 0 ? 'daily-pnl positive' : dailyPnL < 0 ? 'daily-pnl negative' : 'daily-pnl neutral';
+                    const pnlText = dailyPnL !== 0 ? dailyPnL.toFixed(0) : '';
+                    
+                    // Berechne die Premium Capture Rate analog zur Streamlit-Version
+                    let premiumCaptureRate = '';
+                    if (dayTrades.length > 0) {
+                        // Suche nach Premium-Spalten (Premium, Prämie, Credit, Debit)
+                        const premiumCols = Object.keys(dayTrades[0]).filter(key => 
+                            key.toLowerCase().includes('premium') || 
+                            key.toLowerCase().includes('prämie') || 
+                            key.toLowerCase().includes('credit') || 
+                            key.toLowerCase().includes('debit')
+                        );
+                        
+                        if (premiumCols.length > 0) {
+                            const premiumCol = premiumCols[0];
+                            
+                            // Berechne verkaufte Prämien (positive Werte)
+                            const soldPremiums = dayTrades
+                                .filter(t => t[premiumCol] && parseFloat(t[premiumCol]) > 0)
+                                .reduce((sum, t) => sum + parseFloat(t[premiumCol]), 0);
+                            
+                            // Berechne gekaufte Prämien (negative Werte)
+                            const boughtPremiums = dayTrades
+                                .filter(t => t[premiumCol] && parseFloat(t[premiumCol]) < 0)
+                                .reduce((sum, t) => sum + Math.abs(parseFloat(t[premiumCol])), 0);
+                            
+                            // Netto-Prämien
+                            const netPremiums = soldPremiums - boughtPremiums;
+                            
+                            // Premium Capture Rate: (P&L / Netto-Prämien) * 100%
+                            if (netPremiums !== 0) {
+                                const captureRate = (dailyPnL / netPremiums) * 100;
+                                
+                                // Bestimme die CSS-Klasse basierend auf dem Wert
+                                let pcrClass = 'premium-capture-rate';
+                                if (captureRate > 0) {
+                                    pcrClass += ' positive-pcr';
+                                } else if (captureRate < 0) {
+                                    pcrClass += ' negative-pcr';
+                                } else {
+                                    pcrClass += ' neutral-pcr';
+                                }
+                                
+                                premiumCaptureRate = `<div class="${pcrClass}">${captureRate.toFixed(1)}%</div>`;
+                            }
+                        }
+                    }
+                    
+                    const tradeIndicator = dayTrades.length > 0 ? `<div class="trade-indicator">${dayTrades.length}</div>` : '';
+                    
+                    weekHTML += `
+                        <div class="calendar-cell current-month">
+                            <div class="date-number">${dayOfMonth}</div>
+                            ${tradeIndicator}
+                            ${pnlText ? `<div class="${pnlClass}">${pnlText}</div>` : ''}
+                            ${premiumCaptureRate}
+                        </div>
+                    `;
+                } else {
+                    // Leere Zelle für Tage außerhalb des Monats
+                    weekHTML += `
+                        <div class="calendar-cell empty-cell">
+                            <div class="date-number"></div>
+                        </div>
+                    `;
+                }
+                
+                cellIndex++;
+            }
+            
+            // Woche schließen und neue beginnen (außer bei der letzten Woche)
+            if (week < weeksNeeded - 1) {
+                weekHTML += '</div>';
+                calendarHTML += weekHTML;
+                weekHTML = '<div class="calendar-week">';
+            }
+        }
+        
+        // Letzte Woche schließen
+        weekHTML += '</div>';
+        calendarHTML += weekHTML;
+        
+        calendarHTML += '</div>';
+        calendarEl.innerHTML = calendarHTML;
+        
+        // Debug-Ausgabe für Kalender-Update
+        console.log('Kalender aktualisiert mit', data.length, 'Trades');
+    }
+    
+    function updateListView() {
+        updateListViewWithData(currentMonthData);
+    }
+
+    function updateStatsView() {
+        updateStatsViewWithData(currentMonthData);
+    }
+
+    function switchView(view) {
+        currentView = view;
+        
+        // Hide all views
+        document.getElementById('calendarView').style.display = 'none';
+        document.getElementById('listView').style.display = 'none';
+        document.getElementById('statsView').style.display = 'none';
+        
+        // Show selected view
+        switch (view) {
+            case 'calendar':
+                document.getElementById('calendarView').style.display = 'block';
+                break;
+            case 'list':
+                document.getElementById('listView').style.display = 'block';
+                break;
+            case 'stats':
+                document.getElementById('statsView').style.display = 'block';
+                break;
+        }
+    }
+
+    function loadAvailableStrategies() {
+        if (!currentMonthData) return;
+        
+        const strategyFilter = document.getElementById('strategyFilter');
+        const strategies = [...new Set(currentMonthData.map(t => t.Strategy || 'Unbekannt'))].sort();
+        
+        // Aktuelle Auswahl speichern
+        const currentSelection = strategyFilter.value;
+        
+        // Strategien laden (außer der ersten Option "Alle Strategien")
+        strategyFilter.innerHTML = '<option value="">Alle Strategien</option>';
+        strategies.forEach(strategy => {
+            const option = document.createElement('option');
+            option.value = strategy;
+            option.textContent = strategy;
+            strategyFilter.appendChild(option);
+        });
+        
+        // Vorherige Auswahl wiederherstellen, falls möglich
+        if (currentSelection && strategies.includes(currentSelection)) {
+            strategyFilter.value = currentSelection;
+        }
+    }
+    
+    function applyQuickFilter(filter) {
+        if (!currentMonthData) return;
+        
+        console.log('Quick Filter wird angewendet:', filter);
+        
+        let filteredData;
+        switch (filter) {
+            case 'profitable':
+                filteredData = currentMonthData.filter(t => (t.ProfitLoss || 0) > 0);
+                break;
+            case 'losses':
+                filteredData = currentMonthData.filter(t => (t.ProfitLoss || 0) < 0);
+                break;
+            case 'open':
+                filteredData = currentMonthData.filter(t => t.Status === 'Open');
+                break;
+            case 'closed':
+                filteredData = currentMonthData.filter(t => t.Status === 'Closed');
+                break;
+            default:
+                filteredData = currentMonthData;
+        }
+        
+        // Strategie-Filter anwenden
+        const strategyFilter = document.getElementById('strategyFilter').value;
+        if (strategyFilter) {
+            filteredData = filteredData.filter(t => t.Strategy === strategyFilter);
+            console.log('Strategie-Filter angewendet:', strategyFilter);
+        }
+        
+        // Alle Ansichten synchron aktualisieren
+        updateAllViews(filteredData);
+        
+        console.log('Quick Filter angewendet:', filter);
+        console.log('Gefilterte Daten:', filteredData.length, 'von', currentMonthData.length);
+    }
+    
+    function applyStrategyFilter(strategy) {
+        if (!currentMonthData) return;
+        
+        console.log('Strategy Filter wird angewendet:', strategy);
+        
+        let filteredData = [...currentMonthData];
+        
+        // Quick-Filter anwenden
+        const quickFilter = document.getElementById('quickFilter').value;
+        switch (quickFilter) {
+            case 'profitable':
+                filteredData = filteredData.filter(t => (t.ProfitLoss || 0) > 0);
+                break;
+            case 'losses':
+                filteredData = filteredData.filter(t => (t.ProfitLoss || 0) < 0);
+                break;
+            case 'open':
+                filteredData = filteredData.filter(t => t.Status === 'Open');
+                break;
+            case 'closed':
+                filteredData = filteredData.filter(t => t.Status === 'Closed');
+                break;
+        }
+        
+        // Strategie-Filter anwenden
+        if (strategy) {
+            filteredData = filteredData.filter(t => t.Strategy === strategy);
+            console.log('Strategie-Filter angewendet:', strategy);
+        }
+        
+        // Alle Ansichten synchron aktualisieren
+        updateAllViews(filteredData);
+        
+        console.log('Strategy Filter angewendet:', strategy);
+        console.log('Gefilterte Daten:', filteredData.length, 'von', currentMonthData.length);
+    }
+
+    function applySorting(sortBy) {
+        if (!currentMonthData) return;
+        
+        console.log('Sortierung wird angewendet:', sortBy);
+        
+        let sortedData = [...currentMonthData];
+        switch (sortBy) {
+            case 'date':
+                sortedData.sort((a, b) => (a.Day || 0) - (b.Day || 0));
+                break;
+            case 'profit':
+                sortedData.sort((a, b) => (b.ProfitLoss || 0) - (a.ProfitLoss || 0));
+                break;
+            case 'strategy':
+                sortedData.sort((a, b) => (a.Strategy || '').localeCompare(b.Strategy || ''));
+                break;
+            case 'type':
+                sortedData.sort((a, b) => (a.TradeType || '').localeCompare(b.TradeType || ''));
+                break;
+        }
+        
+        // Alle Ansichten synchron aktualisieren
+        updateAllViews(sortedData);
+        
+        console.log('Sortierung angewendet:', sortBy);
+        console.log('Sortierte Daten:', sortedData.length, 'Trades');
+    }
+
+    function updateListViewWithData(data) {
+        const tbody = document.getElementById('monthlyTradesTableBody');
+        tbody.innerHTML = '';
+        
+        data.forEach(trade => {
+            const row = document.createElement('tr');
+            const profitLoss = trade.ProfitLoss || 0;
+            const profitClass = profitLoss > 0 ? 'text-success' : profitLoss < 0 ? 'text-danger' : 'text-muted';
+            
+            row.innerHTML = `
+                <td>${trade.Day || 'N/A'}.${trade.Month || 'N/A'}.${trade.Year || 'N/A'}</td>
+                <td>${trade.TradeID || 'N/A'}</td>
+                <td>${trade.TradeType || 'N/A'}</td>
+                <td>${trade.Strategy || 'N/A'}</td>
+                <td class="${profitClass}">${profitLoss.toFixed(2)}</td>
+                <td>${trade.Status || 'N/A'}</td>
+                <td>
+                    <button class="btn btn-sm btn-outline-primary" onclick="showTradeDetails(${trade.TradeID || 'N/A'})">
+                        <i class="fas fa-eye"></i>
+                    </button>
+                </td>
+            `;
+            tbody.appendChild(row);
+        });
+    }
+
+    function updateStatsViewWithData(data) {
+        if (!data) return;
+        
+        const statsEl = document.getElementById('monthlyStats');
+        
+        // Calculate statistics for filtered data
+        const totalTrades = data.length;
+        const profitableTrades = data.filter(t => (t.ProfitLoss || 0) > 0).length;
+        const lossTrades = data.filter(t => (t.ProfitLoss || 0) < 0).length;
+        const totalProfit = data.reduce((sum, t) => sum + (t.ProfitLoss || 0), 0);
+        const avgProfit = totalTrades > 0 ? totalProfit / totalTrades : 0;
+        const winRate = totalTrades > 0 ? (profitableTrades / totalTrades) * 100 : 0;
+        
+        // Strategy breakdown
+        const strategyStats = {};
+        data.forEach(t => {
+            const strategy = t.Strategy || 'Unbekannt';
+            if (!strategyStats[strategy]) {
+                strategyStats[strategy] = { count: 0, profit: 0 };
+            }
+            strategyStats[strategy].count++;
+            strategyStats[strategy].profit += (t.ProfitLoss || 0);
+        });
+        
+        let strategyHTML = '';
+        Object.entries(strategyStats).forEach(([strategy, stats]) => {
+            strategyHTML += `
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <span class="badge bg-secondary">${strategy}</span>
+                    <span>${stats.count} Trades, ${stats.profit.toFixed(2)} Gewinn</span>
+                </div>
+            `;
+        });
+        
+        // Bestimme den Header-Text basierend auf den Daten
+        const isFiltered = data.length !== currentMonthData.length;
+        const headerText = isFiltered ? `(Gefiltert: ${data.length} von ${currentMonthData.length})` : '';
+        
+        statsEl.innerHTML = `
+            <div class="col-lg-6">
+                <div class="card">
+                    <div class="card-header">
+                        <h6 class="mb-0">Performance-Übersicht ${headerText}</h6>
+                    </div>
+                    <div class="card-body">
+                        <div class="mb-3">
+                            <h6>Gewinnrate</h6>
+                            <div class="progress mb-2">
+                                <div class="progress-bar bg-success" role="progressbar" style="width: ${winRate}%">
+                                    ${winRate.toFixed(1)}%
+                                </div>
+                            </div>
+                            <small class="text-muted">${profitableTrades} von ${totalTrades} Trades gewinnbringend</small>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <h6>Durchschnittlicher Gewinn/Verlust</h6>
+                            <p class="mb-1"><strong>${avgProfit.toFixed(2)}</strong></p>
+                            <small class="text-muted">Pro Trade</small>
+                        </div>
+                        
+                        <div>
+                            <h6>Verteilung</h6>
+                            <div class="d-flex justify-content-between align-items-center mb-1">
+                                <span>Gewinne:</span>
+                                <span class="badge bg-success">${profitableTrades}</span>
+                            </div>
+                            <div class="d-flex justify-content-between align-items-center mb-1">
+                                <span>Verluste:</span>
+                                <span class="badge bg-danger">${lossTrades}</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="col-lg-6">
+                <div class="card">
+                    <div class="card-header">
+                        <h6 class="mb-0">Strategie-Breakdown ${headerText}</h6>
+                    </div>
+                    <div class="card-body">
+                        ${strategyHTML}
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        console.log('Statistiken aktualisiert mit', data.length, 'Trades');
+    }
+
+    function applyCurrentFilters() {
+        console.log('Aktuelle Filter werden angewendet...');
+        
+        // Hole aktuelle Filter-Einstellungen
+        const quickFilter = document.getElementById('quickFilter').value;
+        const strategyFilter = document.getElementById('strategyFilter').value;
+        
+        console.log('Aktuelle Filter:', { quickFilter, strategyFilter });
+        
+        // Wende Filter an, falls gesetzt
+        if (quickFilter || strategyFilter) {
+            let filteredData = [...currentMonthData];
+            
+            // Quick-Filter anwenden
+            if (quickFilter) {
+                switch (quickFilter) {
+                    case 'profitable':
+                        filteredData = filteredData.filter(t => (t.ProfitLoss || 0) > 0);
+                        break;
+                    case 'losses':
+                        filteredData = filteredData.filter(t => (t.ProfitLoss || 0) < 0);
+                        break;
+                    case 'open':
+                        filteredData = filteredData.filter(t => t.Status === 'Open');
+                        break;
+                    case 'closed':
+                        filteredData = filteredData.filter(t => t.Status === 'Closed');
+                        break;
+                }
+                console.log('Quick-Filter angewendet:', quickFilter);
+            }
+            
+            // Strategie-Filter anwenden
+            if (strategyFilter) {
+                filteredData = filteredData.filter(t => t.Strategy === strategyFilter);
+                console.log('Strategie-Filter angewendet:', strategyFilter);
+            }
+            
+            // Alle Ansichten mit gefilterten Daten aktualisieren
+            updateAllViews(filteredData);
+            
+            console.log('Filter angewendet:', filteredData.length, 'von', currentMonthData.length, 'Trades');
+        } else {
+            // Keine Filter gesetzt - zeige alle Daten
+            console.log('Keine Filter gesetzt - zeige alle Daten');
+            updateAllViews(currentMonthData);
+        }
+    }
+    
+    function updateAllViews(data) {
+        console.log('Alle Ansichten werden aktualisiert mit', data.length, 'Trades');
+        
+        // Alle Ansichten synchron aktualisieren
+        updateListViewWithData(data);
+        updateStatsViewWithData(data);
+        updateMonthlySummaryWithData(data);
+        updateCalendarViewWithData(data);
+        
+        console.log('Alle Ansichten wurden aktualisiert');
+    }
+    
+    function showTradeDetails(tradeId) {
+        // Implementation for showing trade details
+        console.log('Show details for trade:', tradeId);
+    }
+</script>
+
+<style>
+    .calendar-grid {
+        border: 1px solid #dee2e6;
+        border-radius: 0.375rem;
+    }
+    
+    .calendar-header {
+        display: grid;
+        grid-template-columns: repeat(7, 1fr);
+        background-color: #f8f9fa;
+        border-bottom: 1px solid #dee2e6;
+    }
+    
+    .calendar-week {
+        display: grid;
+        grid-template-columns: repeat(7, 1fr);
+        border-bottom: 1px solid #dee2e6;
+    }
+    
+    .calendar-week:last-child {
+        border-bottom: none;
+    }
+    
+    .calendar-cell {
+        padding: 10px;
+        text-align: center;
+        border-right: 1px solid #dee2e6;
+        min-height: 90px;
+        position: relative;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: flex-start;
+    }
+    
+    .calendar-cell:last-child {
+        border-right: none;
+    }
+    
+    .calendar-cell.other-month {
+        background-color: #f8f9fa;
+        color: #6c757d;
+    }
+    
+    .calendar-cell.empty-cell {
+        background-color: #ffffff;
+        color: #dee2e6;
+    }
+    
+    /* Graue Hintergrundfarbe für Samstag und Sonntag */
+    .calendar-header .calendar-cell:nth-child(1),
+    .calendar-header .calendar-cell:nth-child(7),
+    .calendar-week .calendar-cell:nth-child(1),
+    .calendar-week .calendar-cell:nth-child(7) {
+        background-color: #f8f9fa;
+    }
+    
+    .date-number {
+        font-weight: bold;
+        margin-bottom: 5px;
+    }
+    
+    .trade-indicator {
+        background-color: #007bff;
+        color: white;
+        border-radius: 50%;
+        width: 20px;
+        height: 20px;
+        line-height: 20px;
+        font-size: 12px;
+        position: absolute;
+        top: 5px;
+        right: 5px;
+    }
+    
+    .daily-pnl {
+        font-size: 11px;
+        font-weight: bold;
+        padding: 2px 4px;
+        border-radius: 3px;
+        margin-top: 3px;
+        text-align: center;
+        min-width: 30px;
+        display: inline-block;
+    }
+    
+    .daily-pnl.positive {
+        background-color: #d4edda;
+        color: #155724;
+        border: 1px solid #c3e6cb;
+    }
+    
+    .daily-pnl.negative {
+        background-color: #f8d7da;
+        color: #721c24;
+        border: 1px solid #f5c6cb;
+    }
+    
+    .daily-pnl.neutral {
+        background-color: #e2e3e5;
+        color: #383d41;
+        border: 1px solid #d6d8db;
+    }
+    
+    .premium-capture-rate {
+        font-size: 10px;
+        font-weight: bold;
+        padding: 2px 4px;
+        border-radius: 3px;
+        margin-top: 2px;
+        text-align: center;
+        min-width: 35px;
+        display: inline-block;
+        color: white;
+        border: 1px solid;
+    }
+    
+    /* Positive Premium Capture Rate - Grün */
+    .premium-capture-rate.positive-pcr {
+        background-color: #28a745;
+        border-color: #1e7e34;
+    }
+    
+    /* Negative Premium Capture Rate - Rot */
+    .premium-capture-rate.negative-pcr {
+        background-color: #dc3545;
+        border-color: #c82333;
+    }
+    
+    /* Neutrale Premium Capture Rate - Grau */
+    .premium-capture-rate.neutral-pcr {
+        background-color: #6c757d;
+        border-color: #545b62;
+    }
+    
+    .stats-card {
+        padding: 1.5rem;
+        border-radius: 0.5rem;
+        text-align: center;
+        margin-bottom: 1rem;
+    }
+    
+    .stats-number {
+        font-size: 2rem;
+        font-weight: bold;
+        margin-bottom: 0.5rem;
+    }
+    
+    .stats-label {
+        font-size: 0.9rem;
+        opacity: 0.9;
+    }
+</style>
+{% endblock %}

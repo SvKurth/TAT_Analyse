@@ -1,0 +1,492 @@
+{% extends "base.html" %}
+
+{% block title %}Trade-Tabelle - TAT Analyse Tool{% endblock %}
+
+{% block content %}
+{% if data is defined and data is not none %}
+<div class="row">
+    <div class="col-12">
+        <div class="main-content">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <div>
+                    <h2 class="fw-bold text-primary mb-2">
+                        <i class="fas fa-table me-3"></i>
+                        Trade-Tabelle
+                    </h2>
+                    <p class="text-muted mb-0">
+                        Vollständige Übersicht aller Trade-Daten mit Filter und Sortierung
+                    </p>
+                </div>
+                <div>
+                    <a href="{{ url_for('dashboard') }}" class="btn btn-outline-primary me-2">
+                        <i class="fas fa-tachometer-alt me-2"></i>
+                        Dashboard
+                    </a>
+                    <button class="btn btn-success" onclick="exportFilteredData()">
+                        <i class="fas fa-download me-2"></i>
+                        Export
+                    </button>
+                </div>
+            </div>
+
+            <!-- Filters and Controls -->
+            <div class="row mb-4">
+                <div class="col-lg-8">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5 class="mb-0">
+                                <i class="fas fa-filter me-2"></i>
+                                Filter und Suche
+                            </h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="row g-3">
+                                <div class="col-md-6">
+                                    <label for="searchInput" class="form-label">Suche</label>
+                                    <input type="text" class="form-control" id="searchInput" placeholder="In allen Spalten suchen...">
+                                </div>
+                                <div class="col-md-6">
+                                    <label for="columnFilter" class="form-label">Spalte</label>
+                                    <select class="form-select" id="columnFilter">
+                                        <option value="">Alle Spalten</option>
+                                        {% if data is defined and data is not none %}
+                                        {% for col in data.columns %}
+                                        <option value="{{ col }}">{{ col }}</option>
+                                        {% endfor %}
+                                        {% endif %}
+                                    </select>
+                                </div>
+                                <div class="col-md-4">
+                                    <label for="rowsPerPage" class="form-label">Zeilen pro Seite</label>
+                                    <select class="form-select" id="rowsPerPage">
+                                        <option value="25">25</option>
+                                        <option value="50" selected>50</option>
+                                        <option value="100">100</option>
+                                        <option value="200">200</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-4">
+                                    <label for="sortColumn" class="form-label">Sortieren nach</label>
+                                    <select class="form-select" id="sortColumn">
+                                        <option value="">Keine Sortierung</option>
+                                        {% if data is defined and data is not none %}
+                                        {% for col in data.columns %}
+                                        <option value="{{ col }}">{{ col }}</option>
+                                        {% endfor %}
+                                        {% endif %}
+                                    </select>
+                                </div>
+                                <div class="col-md-4">
+                                    <label for="sortOrder" class="form-label">Sortierreihenfolge</label>
+                                    <select class="form-select" id="sortOrder">
+                                        <option value="asc">Aufsteigend</option>
+                                        <option value="desc">Absteigend</option>
+                                    </select>
+                                </div>
+                            </div>
+                            
+                            <div class="row mt-3">
+                                <div class="col-12">
+                                    <button class="btn btn-primary me-2" onclick="applyFilters()">
+                                        <i class="fas fa-search me-2"></i>
+                                        Filter anwenden
+                                    </button>
+                                    <button class="btn btn-outline-secondary" onclick="clearFilters()">
+                                        <i class="fas fa-times me-2"></i>
+                                        Filter löschen
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-lg-4">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5 class="mb-0">
+                                <i class="fas fa-info-circle me-2"></i>
+                                Tabelleninfo
+                            </h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="mb-3">
+                                <h6>Gesamtzeilen</h6>
+                                <div class="stats-number">{{ data.shape[0] if data is defined and data is not none else 0 }}</div>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <h6>Angezeigte Zeilen</h6>
+                                <div class="stats-number" id="displayedRows">{{ data.shape[0] if data is defined and data is not none else 0 }}</div>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <h6>Spalten</h6>
+                                <div class="stats-number">{{ data.shape[1] if data is defined and data is not none else 0 }}</div>
+                            </div>
+                            
+                            <div>
+                                <h6>Primärschlüssel</h6>
+                                {% if tables is defined and tables is not none %}
+                                {% for table_name, table_info in tables.items() %}
+                                    {% if table_name.lower() == 'trade' and table_info.primary_keys %}
+                                        {% for pk in table_info.primary_keys %}
+                                            <span class="badge bg-primary me-1">{{ pk }}</span>
+                                        {% endfor %}
+                                    {% endif %}
+                                {% endfor %}
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Data Table -->
+            <div class="row">
+                <div class="col-12">
+                    <div class="card">
+                        <div class="card-header d-flex justify-content-between align-items-center">
+                            <h5 class="mb-0">
+                                <i class="fas fa-list me-2"></i>
+                                Trade-Daten
+                            </h5>
+                            <div class="d-flex align-items-center">
+                                <span class="text-muted me-3">
+                                    Seite <span id="currentPage">1</span> von <span id="totalPages">1</span>
+                                </span>
+                                <div class="btn-group" role="group">
+                                    <button type="button" class="btn btn-outline-primary btn-sm" onclick="previousPage()">
+                                        <i class="fas fa-chevron-left"></i>
+                                    </button>
+                                    <button type="button" class="btn btn-outline-primary btn-sm" onclick="nextPage()">
+                                        <i class="fas fa-chevron-right"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="card-body">
+                            <div class="table-responsive">
+                                <table class="table table-striped table-hover" id="dataTable">
+                                    <thead>
+                                        <tr>
+                                            {% if data is defined and data is not none %}
+                                            {% for col in data.columns %}
+                                            <th class="sortable" onclick="sortTable('{{ col }}')">
+                                                {{ col }}
+                                                <i class="fas fa-sort ms-1 text-muted"></i>
+                                            </th>
+                                            {% endfor %}
+                                            {% endif %}
+                                        </tr>
+                                    </thead>
+                                    <tbody id="tableBody">
+                                        <!-- Data will be loaded here via JavaScript -->
+                                    </tbody>
+                                </table>
+                            </div>
+                            
+                            <!-- Pagination Info -->
+                            <div class="d-flex justify-content-between align-items-center mt-3">
+                                <div>
+                                    <small class="text-muted">
+                                        Zeige <span id="startRow">1</span> bis <span id="endRow">50</span> von <span id="totalRows">{{ data.shape[0] if data is defined and data is not none else 0 }}</span> Einträgen
+                                    </small>
+                                </div>
+                                <div>
+                                    <button class="btn btn-sm btn-outline-primary" onclick="exportFilteredData()">
+                                        <i class="fas fa-download me-1"></i>
+                                        Gefilterte Daten exportieren
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% else %}
+<div class="row justify-content-center">
+    <div class="col-lg-6">
+        <div class="main-content text-center">
+            <div class="mb-4">
+                <i class="fas fa-exclamation-triangle fa-5x text-warning"></i>
+            </div>
+            
+            <h2 class="h3 mb-3">Keine Daten geladen</h2>
+            <p class="lead text-muted mb-4">
+                Bitte laden Sie zuerst eine Datenbankdatei hoch, um die Trade-Tabelle zu nutzen.
+            </p>
+            
+            <div class="d-grid gap-2 d-md-block">
+                <a href="{{ url_for('upload_file') }}" class="btn btn-primary btn-lg">
+                    <i class="fas fa-upload me-2"></i>
+                    Datei hochladen
+                </a>
+                <a href="{{ url_for('index') }}" class="btn btn-outline-primary btn-lg">
+                    <i class="fas fa-home me-2"></i>
+                    Zur Startseite
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- Export Modal -->
+<div class="modal fade" id="exportModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-download me-2"></i>
+                    Daten exportieren
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label class="form-label">Export-Format wählen:</label>
+                    <div class="d-grid gap-2">
+                        <button class="btn btn-outline-primary" onclick="exportData('csv')">
+                            <i class="fas fa-file-csv me-2"></i>
+                            CSV-Datei (.csv)
+                        </button>
+                        <button class="btn btn-outline-primary" onclick="exportData('excel')">
+                            <i class="fas fa-file-excel me-2"></i>
+                            Excel-Datei (.xlsx)
+                        </button>
+                        <button class="btn btn-outline-primary" onclick="exportData('json')">
+                            <i class="fas fa-file-code me-2"></i>
+                            JSON-Datei (.json)
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="alert alert-info">
+                    <i class="fas fa-info-circle me-2"></i>
+                    <strong>Hinweis:</strong> Es werden nur die aktuell gefilterten und angezeigten Daten exportiert.
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Schließen</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    {% if data is defined and data is not none %}
+    let currentData = {{ data.to_json(orient='records') | safe }};
+    {% else %}
+    let currentData = [];
+    {% endif %}
+    let filteredData = [...currentData];
+    let currentPage = 1;
+    let rowsPerPage = 50;
+    let sortColumn = '';
+    let sortOrder = 'asc';
+    let searchTerm = '';
+    let columnFilter = '';
+
+    // Initialize table
+    document.addEventListener('DOMContentLoaded', function() {
+        {% if data is defined and data is not none %}
+        updateTable();
+        updatePagination();
+        {% endif %}
+    });
+
+    function updateTable() {
+        const tableBody = document.getElementById('tableBody');
+        const startIndex = (currentPage - 1) * rowsPerPage;
+        const endIndex = startIndex + rowsPerPage;
+        const pageData = filteredData.slice(startIndex, endIndex);
+        
+        tableBody.innerHTML = '';
+        
+        pageData.forEach(row => {
+            const tr = document.createElement('tr');
+            Object.values(row).forEach(value => {
+                const td = document.createElement('td');
+                if (value === null || value === undefined) {
+                    td.textContent = '';
+                    td.classList.add('text-muted');
+                } else if (typeof value === 'number') {
+                    td.textContent = Number(value).toFixed(2);
+                } else {
+                    td.textContent = String(value);
+                }
+                tr.appendChild(td);
+            });
+            tableBody.appendChild(tr);
+        });
+        
+        updateDisplayedRows();
+    }
+
+    function updatePagination() {
+        const totalPages = Math.ceil(filteredData.length / rowsPerPage);
+        document.getElementById('totalPages').textContent = totalPages;
+        document.getElementById('currentPage').textContent = currentPage;
+        document.getElementById('totalRows').textContent = filteredData.length;
+        
+        const startRow = (currentPage - 1) * rowsPerPage + 1;
+        const endRow = Math.min(currentPage * rowsPerPage, filteredData.length);
+        document.getElementById('startRow').textContent = startRow;
+        document.getElementById('endRow').textContent = endRow;
+    }
+
+    function updateDisplayedRows() {
+        document.getElementById('displayedRows').textContent = filteredData.length;
+    }
+
+    function applyFilters() {
+        searchTerm = document.getElementById('searchInput').value.toLowerCase();
+        columnFilter = document.getElementById('columnFilter').value;
+        rowsPerPage = parseInt(document.getElementById('rowsPerPage').value);
+        sortColumn = document.getElementById('sortColumn').value;
+        sortOrder = document.getElementById('sortOrder').value;
+        
+        // Apply search filter
+        filteredData = currentData.filter(row => {
+            if (searchTerm) {
+                if (columnFilter) {
+                    // Search in specific column
+                    const value = row[columnFilter];
+                    return value !== null && String(value).toLowerCase().includes(searchTerm);
+                } else {
+                    // Search in all columns
+                    return Object.values(row).some(value => 
+                        value !== null && String(value).toLowerCase().includes(searchTerm)
+                    );
+                }
+            }
+            return true;
+        });
+        
+        // Apply sorting
+        if (sortColumn && filteredData.length > 0) {
+            filteredData.sort((a, b) => {
+                let aVal = a[sortColumn];
+                let bVal = b[sortColumn];
+                
+                // Handle null values
+                if (aVal === null) aVal = '';
+                if (bVal === null) bVal = '';
+                
+                // Handle numeric values
+                if (typeof aVal === 'number' && typeof bVal === 'number') {
+                    return sortOrder === 'asc' ? aVal - bVal : bVal - aVal;
+                }
+                
+                // Handle string values
+                const aStr = String(aVal).toLowerCase();
+                const bStr = String(bVal).toLowerCase();
+                
+                if (sortOrder === 'asc') {
+                    return aStr.localeCompare(bStr);
+                } else {
+                    return bStr.localeCompare(aStr);
+                }
+            });
+        }
+        
+        currentPage = 1;
+        updateTable();
+        updatePagination();
+    }
+
+    function clearFilters() {
+        document.getElementById('searchInput').value = '';
+        document.getElementById('columnFilter').value = '';
+        document.getElementById('sortColumn').value = '';
+        document.getElementById('sortOrder').value = 'asc';
+        
+        searchTerm = '';
+        columnFilter = '';
+        sortColumn = '';
+        sortOrder = 'asc';
+        
+        filteredData = [...currentData];
+        currentPage = 1;
+        updateTable();
+        updatePagination();
+    }
+
+    function sortTable(column) {
+        if (sortColumn === column) {
+            sortOrder = sortOrder === 'asc' ? 'desc' : 'asc';
+        } else {
+            sortColumn = column;
+            sortOrder = 'asc';
+        }
+        
+        document.getElementById('sortColumn').value = column;
+        document.getElementById('sortOrder').value = sortOrder;
+        
+        applyFilters();
+    }
+
+    function previousPage() {
+        if (currentPage > 1) {
+            currentPage--;
+            updateTable();
+            updatePagination();
+        }
+    }
+
+    function nextPage() {
+        const totalPages = Math.ceil(filteredData.length / rowsPerPage);
+        if (currentPage < totalPages) {
+            currentPage++;
+            updateTable();
+            updatePagination();
+        }
+    }
+
+    function exportFilteredData() {
+        const exportModal = new bootstrap.Modal(document.getElementById('exportModal'));
+        exportModal.show();
+    }
+
+    function exportData(format) {
+        // Create a temporary form to submit the filtered data
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = `/api/export/${format}`;
+        form.target = '_blank';
+        
+        // Add the filtered data as a hidden input
+        const dataInput = document.createElement('input');
+        dataInput.type = 'hidden';
+        dataInput.name = 'data';
+        dataInput.value = JSON.stringify(filteredData);
+        form.appendChild(dataInput);
+        
+        document.body.appendChild(form);
+        form.submit();
+        document.body.removeChild(form);
+        
+        // Close modal
+        const exportModal = bootstrap.Modal.getInstance(document.getElementById('exportModal'));
+        exportModal.hide();
+    }
+
+    // Event listeners
+    document.getElementById('searchInput').addEventListener('keyup', function(e) {
+        if (e.key === 'Enter') {
+            applyFilters();
+        }
+    });
+
+    document.getElementById('rowsPerPage').addEventListener('change', applyFilters);
+    document.getElementById('columnFilter').addEventListener('change', applyFilters);
+    document.getElementById('sortColumn').addEventListener('change', applyFilters);
+    document.getElementById('sortOrder').addEventListener('change', applyFilters);
+</script>
+{% endblock %}
