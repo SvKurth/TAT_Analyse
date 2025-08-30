@@ -336,10 +336,14 @@
         if (!data) return;
         
         const summary = document.getElementById('monthlySummary');
-        const totalTrades = data.length;
-        const profitableTrades = data.filter(t => (t.ProfitLoss || 0) > 0).length;
-        const totalProfit = data.reduce((sum, t) => sum + (t.ProfitLoss || 0), 0);
-        const avgProfit = totalTrades > 0 ? totalProfit / totalTrades : 0;
+                 const totalTrades = data.length;
+         const profitableTrades = data.filter(t => (t.ProfitLoss || 0) > 0).length;
+         const totalProfit = data.reduce((sum, t) => sum + (t.ProfitLoss || 0), 0);
+         const avgProfit = totalTrades > 0 ? totalProfit / totalTrades : 0;
+         
+         // Berechne durchschnittlichen P&L pro Tag für die Monatszusammenfassung
+         const uniqueDays = [...new Set(data.map(t => t.Day))].filter(day => day).length;
+         const avgProfitPerDay = uniqueDays > 0 ? totalProfit / uniqueDays : 0;
         
         // Bestimme den Label-Text basierend auf den Daten
         const isFiltered = data.length !== currentMonthData.length;
@@ -364,12 +368,12 @@
                     <div class="stats-label">Gesamtgewinn</div>
                 </div>
             </div>
-            <div class="col-md-3">
-                <div class="stats-card bg-warning text-white">
-                    <div class="stats-number">${avgProfit.toFixed(2)}</div>
-                    <div class="stats-label">Ø Gewinn/Trade</div>
-                </div>
-            </div>
+                         <div class="col-md-3">
+                 <div class="stats-card bg-warning text-white">
+                     <div class="stats-number">${avgProfitPerDay.toFixed(2)}</div>
+                     <div class="stats-label">Ø Gewinn/Tag</div>
+                 </div>
+             </div>
         `;
         
         console.log('Monatszusammenfassung aktualisiert mit', data.length, 'Trades');
