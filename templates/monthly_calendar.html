@@ -714,12 +714,17 @@
         const statsEl = document.getElementById('monthlyStats');
         
         // Calculate statistics for filtered data
-        const totalTrades = data.length;
-        const profitableTrades = data.filter(t => (t.ProfitLoss || 0) > 0).length;
-        const lossTrades = data.filter(t => (t.ProfitLoss || 0) < 0).length;
-        const totalProfit = data.reduce((sum, t) => sum + (t.ProfitLoss || 0), 0);
-        const avgProfit = totalTrades > 0 ? totalProfit / totalTrades : 0;
-        const winRate = totalTrades > 0 ? (profitableTrades / totalTrades) * 100 : 0;
+                 const totalTrades = data.length;
+         const profitableTrades = data.filter(t => (t.ProfitLoss || 0) > 0).length;
+         const lossTrades = data.filter(t => (t.ProfitLoss || 0) < 0).length;
+         const totalProfit = data.reduce((sum, t) => sum + (t.ProfitLoss || 0), 0);
+         const avgProfit = totalTrades > 0 ? totalProfit / totalTrades : 0;
+         
+         // Berechne durchschnittlichen P&L pro Tag
+         const uniqueDays = [...new Set(data.map(t => t.Day))].filter(day => day).length;
+         const avgProfitPerDay = uniqueDays > 0 ? totalProfit / uniqueDays : 0;
+         
+         const winRate = totalTrades > 0 ? (profitableTrades / totalTrades) * 100 : 0;
         
         // Strategy breakdown
         const strategyStats = {};
@@ -763,11 +768,11 @@
                             <small class="text-muted">${profitableTrades} von ${totalTrades} Trades gewinnbringend</small>
                         </div>
                         
-                        <div class="mb-3">
-                            <h6>Durchschnittlicher Gewinn/Verlust</h6>
-                            <p class="mb-1"><strong>${avgProfit.toFixed(2)}</strong></p>
-                            <small class="text-muted">Pro Trade</small>
-                        </div>
+                                                 <div class="mb-3">
+                             <h6>Durchschnittlicher Gewinn/Verlust</h6>
+                             <p class="mb-1"><strong>${avgProfitPerDay.toFixed(2)}</strong></p>
+                             <small class="text-muted">Pro Tag</small>
+                         </div>
                         
                         <div>
                             <h6>Verteilung</h6>
